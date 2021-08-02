@@ -1,0 +1,2065 @@
+---
+title: "Portland Trail Blazers Roster Construction Cluster Analysis "
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(nbastatR)
+library(future)
+library(tidyverse)
+library(factoextra)
+library(cluster)
+library(NbClust)
+library(ballr)
+library(data.table)
+library(rgdal)
+library(sp)
+library(sf)
+library(raster)
+library(ggpubr)
+library(kableExtra)
+library(caret)
+
+playoffs<-read.csv(file="nba_playoffs.csv")
+
+#Basketball-Reference
+salaries<-read.csv(file="nba_salary.csv")
+
+salaries<-salaries %>%
+  mutate(Player = case_when(
+    Player == "Jusuf Nurkić" ~ "Jusuf Nurkic",
+    Player == "Rudy Fernández" ~ "Rudy Fernandez",
+    Player == "Sasha Pavlović" ~ "Sasha Pavlovic",
+    Player == "Bogdan Bogdanović" ~ "Bogdan Bogdanovic",
+    Player == "Dennis Schröder" ~ "Dennis Schroder",
+    Player == "Tracy McGrady*" ~ "Tracy McGrady",
+    Player == "Vladimir Radmanović" ~ "Vladimir Radmanovic",
+    Player == "Kevin Garnett*" ~ "Kevin Garnett",
+    Player == "Paul Pierce*" ~ "Paul Pierce",
+    Player == "Ray Allen*" ~ "Ray Allen",
+    Player == "Bojan Bogdanović" ~ "Bojan Bogdanovic",
+    Player == "Džanan Musa" ~ "Dzanan Musa",
+    Player == "Kevin Garnett*" ~ "Kevin Garnett",
+    Player == "Mirza Teletović" ~ "Mirza Teletovic",
+    Player == "Paul Pierce*" ~ "Paul Pierce",
+    Player == "Timothé Luwawu-Cabarrot" ~ "Timothe Luwawu-Cabarrot",
+    Player == "Eduardo Nájera" ~ "Eduardo Najera",
+    Player == "Cristiano Felício" ~ "Cristiano Felicio",
+    Player == "Nikola Mirotić" ~ "Nikola Mirotic",
+    Player == "Tomáš Satoranský" ~ "Tomas Satoransky",
+    Player == "Anderson Varejão" ~ "	Anderson Varejao",
+    Player == "José Calderón" ~ "Jose Calderon",
+    Player == "Shaquille O'Neal*" ~ "Shaquille O'Neal",
+    Player == "Boban Marjanović" ~ "Boban Marjanovic",
+    Player == "Eduardo Nájera" ~ "Eduardo Najera",
+    Player == "Jason Kidd*" ~ "Jason Kidd",
+    Player == "Kristaps Porziņģis" ~ "Kristaps Porzingis",
+    Player == "Luka Dončić" ~ "Luka Doncic",
+    Player == "Juan Hernangómez" ~ "Juan Hernangomez",
+    Player == "Nenê" ~ "Nene",
+    Player == "Nikola Jokić" ~ "Nikola Jokic",
+    Player == "Vlatko Čančar" ~ "Vlatko Cancar",
+    Player == "Ben Wallace*" ~ "Ben Wallace",
+    Player == "José Calderón" ~ "Jose Calderon",
+    Player == "Vladimir Radmanović" ~ "Vladimir Radmanovic",
+    Player == "Donatas Motiejūnas" ~ "Donatas Motiejunas",
+    Player == "Goran Dragić" ~ "Goran Dragic",
+    Player == "Ömer Aşık" ~ "Omer Asık",
+    Player == "Damjan Rudež" ~ "Damjan Rudez",
+    Player == "Kevin Séraphin" ~ "Kevin Seraphin",
+    Player == "Hedo Türkoğlu" ~ "Hedo Turkoglu",
+    Player == "Miloš Teodosić" ~ "Milos Teodosic",
+    Player == "Kobe Bryant*" ~ "Kobe Bryant",
+    Player == "Sasha Vujačić" ~ "Sasha Vujacic",
+    Player == "Steve Nash*" ~ "Steve Nash",
+    Player == "Greivis Vásquez" ~ "Greivis Vasquez",
+    Player == "Jonas Valančiūnas" ~ "Jonas Valanciunas",
+    Player == "Chris Bosh*" ~ "Chris Bosh",
+    Player == "Mirza Teletović" ~ "Mirza Teletovic",
+    Player == "Dario Šarić" ~ "Dario Saric",
+    Player == "Sasha Pavlović" ~ "Sasha Pavlovic",
+    Player == "Nikola Mirotić" ~ "Nikola Mirotic",
+    Player == "Alexis Ajinça" ~ "Alexis Ajinca",
+    Player == "Donatas Motiejūnas" ~ "Donatas Motiejunas",
+    Player == "Nicolò Melli" ~ "Nicolo Melli",
+    Player == "Willy Hernangómez" ~ "Willy Hernangomez",
+    Player == "Álex Abrines" ~ "Alex Abrines",
+    Player == "Nenad Krstić" ~ "Nenad Krstic",
+    Player == "Théo Maledon" ~ "Theo Maledon",
+    Player == "Nikola Vučević" ~ "Nikola Vucevic",
+    Player == "Mirza Teletović" ~ "Mirza Teletović",
+    Player == "Grant Hill*" ~ "Grant Hill",
+    Player == "Dāvis Bertāns" ~ "Davis Bertans",
+    Player == "Manu Ginobili" ~ "Manu Ginobili",
+    Player == "Tim Duncan*" ~ "Tim Duncan",
+    Player == "Luka Šamanić" ~ "Luka Samanic",
+    Player == "Jonas Valančiūnas" ~ "Jonas Valanciunas",
+    Player == "José Calderón" ~ "Jose Calderon",
+    Player == "Chris Bosh*" ~ "Chris Bosh",
+    Player == "Tomáš Satoranský" ~ "Tomas Satoransky",
+    Player == "Jan Veselý" ~ "Jan Vesely",
+    Player == "Dāvis Bertāns" ~ "Davis Bertans",
+    TRUE ~ as.character(Player)
+  ))
+  
+
+#Spotrac
+fa_salaries<-read.csv(file="nba_fa.csv")
+
+fa_salaries<-fa_salaries %>%
+  mutate(player = case_when(
+    player == "Jusuf Nurkić" ~ "Jusuf Nurkic",
+    player == "Rudy Fernández" ~ "Rudy Fernandez",
+    player == "Sasha Pavlović" ~ "Sasha Pavlovic",
+    player == "Bogdan Bogdanović" ~ "Bogdan Bogdanovic",
+    player == "Dennis Schröder" ~ "Dennis Schroder",
+    player == "Tracy McGrady*" ~ "Tracy McGrady",
+    player == "Vladimir Radmanović" ~ "Vladimir Radmanovic",
+    player == "Kevin Garnett*" ~ "Kevin Garnett",
+    player == "Paul Pierce*" ~ "Paul Pierce",
+    player == "Ray Allen*" ~ "Ray Allen",
+    player == "Bojan Bogdanović" ~ "Bojan Bogdanovic",
+    player == "Džanan Musa" ~ "Dzanan Musa",
+    player == "Kevin Garnett*" ~ "Kevin Garnett",
+    player == "Mirza Teletović" ~ "Mirza Teletovic",
+    player == "Paul Pierce*" ~ "Paul Pierce",
+    player == "Timothé Luwawu-Cabarrot" ~ "Timothe Luwawu-Cabarrot",
+    player == "Eduardo Nájera" ~ "Eduardo Najera",
+    player == "Cristiano Felício" ~ "Cristiano Felicio",
+    player == "Nikola Mirotić" ~ "Nikola Mirotic",
+    player == "Tomáš Satoranský" ~ "Tomas Satoransky",
+    player == "Anderson Varejão" ~ "	Anderson Varejao",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Shaquille O'Neal*" ~ "Shaquille O'Neal",
+    player == "Boban Marjanović" ~ "Boban Marjanovic",
+    player == "Eduardo Nájera" ~ "Eduardo Najera",
+    player == "Jason Kidd*" ~ "Jason Kidd",
+    player == "Kristaps Porziņģis" ~ "Kristaps Porzingis",
+    player == "Luka Dončić" ~ "Luka Doncic",
+    player == "Juan Hernangómez" ~ "Juan Hernangomez",
+    player == "Nenê" ~ "Nene",
+    player == "Nikola Jokić" ~ "Nikola Jokic",
+    player == "Vlatko Čančar" ~ "Vlatko Cancar",
+    player == "Ben Wallace*" ~ "Ben Wallace",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Vladimir Radmanović" ~ "Vladimir Radmanovic",
+    player == "Donatas Motiejūnas" ~ "Donatas Motiejunas",
+    player == "Goran Dragić" ~ "Goran Dragic",
+    player == "Ömer Aşık" ~ "Omer Asık",
+    player == "Damjan Rudež" ~ "Damjan Rudez",
+    player == "Kevin Séraphin" ~ "Kevin Seraphin",
+    player == "Hedo Türkoğlu" ~ "Hedo Turkoglu",
+    player == "Miloš Teodosić" ~ "Milos Teodosic",
+    player == "Kobe Bryant*" ~ "Kobe Bryant",
+    player == "Sasha Vujačić" ~ "Sasha Vujacic",
+    player == "Steve Nash*" ~ "Steve Nash",
+    player == "Greivis Vásquez" ~ "Greivis Vasquez",
+    player == "Jonas Valančiūnas" ~ "Jonas Valanciunas",
+    player == "Chris Bosh*" ~ "Chris Bosh",
+    player == "Mirza Teletović" ~ "Mirza Teletovic",
+    player == "Dario Šarić" ~ "Dario Saric",
+    player == "Sasha Pavlović" ~ "Sasha Pavlovic",
+    player == "Nikola Mirotić" ~ "Nikola Mirotic",
+    player == "Alexis Ajinça" ~ "Alexis Ajinca",
+    player == "Donatas Motiejūnas" ~ "Donatas Motiejunas",
+    player == "Nicolò Melli" ~ "Nicolo Melli",
+    player == "Willy Hernangómez" ~ "Willy Hernangomez",
+    player == "Álex Abrines" ~ "Alex Abrines",
+    player == "Nenad Krstić" ~ "Nenad Krstic",
+    player == "Théo Maledon" ~ "Theo Maledon",
+    player == "Nikola Vučević" ~ "Nikola Vucevic",
+    player == "Mirza Teletović" ~ "Mirza Teletović",
+    player == "Grant Hill*" ~ "Grant Hill",
+    player == "Dāvis Bertāns" ~ "Davis Bertans",
+    player == "Manu Ginobili" ~ "Manu Ginobili",
+    player == "Tim Duncan*" ~ "Tim Duncan",
+    player == "Luka Šamanić" ~ "Luka Samanic",
+    player == "Jonas Valančiūnas" ~ "Jonas Valanciunas",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Chris Bosh*" ~ "Chris Bosh",
+    player == "Tomáš Satoranský" ~ "Tomas Satoransky",
+    player == "Jan Veselý" ~ "Jan Vesely",
+    player == "Dāvis Bertāns" ~ "Davis Bertans",
+    TRUE ~ as.character(player)
+  ))
+
+
+# You can install using the pacman package using the following code:
+if (!requireNamespace('pacman', quietly = TRUE)){
+  install.packages('pacman')
+}
+pacman::p_load_current_gh("saiemgilani/hoopR")
+future::plan("multisession")
+tictoc::tic()
+progressr::with_progress({
+  pbp <- load_nba_pbp(2016:2021)
+})
+tictoc::toc()
+## 66.99 sec elapsed
+length(unique(pbp$game_id))
+nrow(pbp)
+
+bx<-load_nba_player_box(2016:2021)
+
+bx<-bx %>%
+  mutate(team_abbreviation = case_when(
+    team_abbreviation == "GS" ~ "GSW",
+    team_abbreviation == "SA" ~ "SAS",
+    team_abbreviation == "NY" ~ "NYK",
+    team_abbreviation == "NO" ~ "NOP",
+    team_abbreviation == "UTAH" ~ "UTA",
+    TRUE ~ team_abbreviation
+  ))
+
+
+#a<-subset(pbp,pbp$home_team_name == "Portland")
+
+#pbp<-subset(pbp,pbp$away_team_id == "22" |
+#              pbp$home_team_id == "22")                   
+#rm(a)  
+
+##### create zones
+Zone1=Polygons(list(Polygon(cbind(c(25.12,5.81,6.65,6.9,7.54,8.8,9.02,10.33,11.03,12.99,13.94,14.98,15.96,19.05,22.41,24.09,25.12),c(12.99,12.99,14.79,15.21,16.47,18.01,18.35,19.78,20.48,22.07,22.76,23.38,23.92,25.2,25.95,26.17,26.15)))),'Right Elbow')
+
+Zone2=Polygons(list(Polygon(cbind(c(25.13,44.55,43.65,43.39,42.71,41.45,41.23,39.98,39.29,37.26,36.31,35.27,34.29,31.2,27.84,26.16,25.13),c(12.99,12.99,14.98,15.27,16.57,18.11,18.55,19.8,20.48,22.07,22.76,23.38,24.05,25.34,25.95,26.17,26.15)))),'Left Elbow')
+
+Zone3=Polygons(list(Polygon(cbind(c(0,5.8,6.64,6.89,7.53,8.79,9.01,10.32,11.02,12.98,13.93,14.98,15.96,19.05,22.41,24.09,25.12,25.12,0),c(12.99,12.99,14.79,15.21,16.47,18.01,18.35,19.78,20.48,22.07,22.76,23.39,24.06,25.35,25.96,26.18,26.16,47,47)))),'Right Wing')
+
+Zone4=Polygons(list(Polygon(cbind(c(50,44.56,43.66,43.4,42.72,41.46,41.24,39.99,39.3,37.27,36.32,35.27,34.29,31.2,27.84,26.16,25.13,25.13,50),c(12.99,12.99,14.98,15.27,16/57,18.11,18.55,19.8,20.48,22.07,22.76,23.39,24.06,25.35,25.96,26.18,26.16,47,47)))),'Left Wing')
+
+Zone5=Polygons(list(Polygon(cbind(c(0,0,5.8,5.25,5.21,5.11,4.89,4.8,4.64,4.62),c(0,12.98,12.98,11.16,10.86,10.26,9.37,8.77,7.57,0)))),'Right Corner')
+
+Zone6=Polygons(list(Polygon(cbind(c(4.63,4.65,4.81,4.9,5.12,5.22,5.26,5.81,17.1,17.1),c(0,7.57,8.77,9.37,10.26,10.86,11.16,12.98,12.98,0)))),'Right Baseline')
+
+Zone7=Polygons(list(Polygon(cbind(c(45.62,45.6,45.44,45.35,45.13,45.03,44.99,44.44,33.15,33.15),c(0,7.57,8.77,9.37,10.26,10.86,11.16,12.98,12.98,0)))),'Left Baseline')
+
+Zone8=Polygons(list(Polygon(cbind(c(50,50,44.45,45,45.04,45.14,45.36,45.45,45.61,45.63),c(0,12.98,12.98,11.16,10.86,10.26,9.37,8.77,7.57,0)))),'Left Corner')
+
+Zone9=Polygons(list(Polygon(cbind(c(17.11,17.11,33.14,33.14),c(0,12.98,12.98,0)))),'Paint')
+
+Zones=SpatialPolygons(list(Zone1,Zone2,Zone3,Zone4,Zone5,Zone6,Zone7,Zone8,Zone9))
+
+
+Zonedf=SpatialPolygonsDataFrame(Zones,data.frame(row.names=c('Right Elbow',
+'Left Elbow',
+'Right Wing',
+'Left Wing',
+'Right Corner',
+'Right Baseline',
+'Left Baseline',
+'Left Corner',
+'Paint'),
+Zone=c('Right Elbow',
+'Left Elbow',
+'Right Wing',
+'Left Wing',
+'Right Corner',
+'Right Baseline',
+'Left Baseline',
+'Left Corner',
+'Paint'),y=runif(9)))
+
+shots<-pbp %>%
+  filter(complete.cases(coordinate_x) &
+           coordinate_y > 0 &
+           coordinate_x > 0 &
+           coordinate_x < 50 &
+           coordinate_y < 50)  
+
+shots$coordinate_x<-as.numeric(shots$coordinate_x)
+shots$coordinate_y<-as.numeric(shots$coordinate_y)
+
+coordinates(shots) = ~coordinate_x+coordinate_y
+
+shots$Zone<-over(shots,Zonedf)$Zone
+
+shots<-as.data.frame(shots@data)
+
+sh<-shots %>%
+  dplyr::select(id,Zone)
+
+rm(shots)
+
+pbp<-pbp %>%
+  left_join(sh,pbp,by=c("id"="id"))
+
+rm(Zone1)
+rm(Zone2)
+rm(Zone3)
+rm(Zone4)
+rm(Zone5)
+rm(Zone6)
+rm(Zone7)
+rm(Zone8)
+rm(Zone9)
+rm(Zonedf)
+rm(Zones)
+rm(sh)
+
+players<-bx %>%
+  dplyr::select(athlete_id,athlete_display_name,team_abbreviation,season,team_id) %>%
+  dplyr::group_by(athlete_id,athlete_display_name,team_abbreviation,season,team_id) %>%
+  dplyr::distinct()
+
+
+  
+
+##### PREVIOUS CLUSTERS #######
+clusters<-read.csv("nba_clusters.csv")
+
+clusters<-clusters %>%
+  mutate(player = case_when(
+    player == "Jusuf Nurkić" ~ "Jusuf Nurkic",
+    player == "Rudy Fernández" ~ "Rudy Fernandez",
+    player == "Sasha Pavlović" ~ "Sasha Pavlovic",
+    player == "Bogdan Bogdanović" ~ "Bogdan Bogdanovic",
+    player == "Dennis Schröder" ~ "Dennis Schroder",
+    player == "Tracy McGrady*" ~ "Tracy McGrady",
+    player == "Vladimir Radmanović" ~ "Vladimir Radmanovic",
+    player == "Kevin Garnett*" ~ "Kevin Garnett",
+    player == "Paul Pierce*" ~ "Paul Pierce",
+    player == "Ray Allen*" ~ "Ray Allen",
+    player == "Bojan Bogdanović" ~ "Bojan Bogdanovic",
+    player == "Džanan Musa" ~ "Dzanan Musa",
+    player == "Kevin Garnett*" ~ "Kevin Garnett",
+    player == "Mirza Teletović" ~ "Mirza Teletovic",
+    player == "Paul Pierce*" ~ "Paul Pierce",
+    player == "Timothé Luwawu-Cabarrot" ~ "Timothe Luwawu-Cabarrot",
+    player == "Eduardo Nájera" ~ "Eduardo Najera",
+    player == "Cristiano Felício" ~ "Cristiano Felicio",
+    player == "Nikola Mirotić" ~ "Nikola Mirotic",
+    player == "Tomáš Satoranský" ~ "Tomas Satoransky",
+    player == "Anderson Varejão" ~ "	Anderson Varejao",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Shaquille O'Neal*" ~ "Shaquille O'Neal",
+    player == "Boban Marjanović" ~ "Boban Marjanovic",
+    player == "Eduardo Nájera" ~ "Eduardo Najera",
+    player == "Jason Kidd*" ~ "Jason Kidd",
+    player == "Kristaps Porziņģis" ~ "Kristaps Porzingis",
+    player == "Luka Dončić" ~ "Luka Doncic",
+    player == "Juan Hernangómez" ~ "Juan Hernangomez",
+    player == "Nenê" ~ "Nene",
+    player == "Nikola Jokić" ~ "Nikola Jokic",
+    player == "Vlatko Čančar" ~ "Vlatko Cancar",
+    player == "Ben Wallace*" ~ "Ben Wallace",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Vladimir Radmanović" ~ "Vladimir Radmanovic",
+    player == "Donatas Motiejūnas" ~ "Donatas Motiejunas",
+    player == "Goran Dragić" ~ "Goran Dragic",
+    player == "Ömer Aşık" ~ "Omer Asık",
+    player == "Damjan Rudež" ~ "Damjan Rudez",
+    player == "Kevin Séraphin" ~ "Kevin Seraphin",
+    player == "Hedo Türkoğlu" ~ "Hedo Turkoglu",
+    player == "Miloš Teodosić" ~ "Milos Teodosic",
+    player == "Kobe Bryant*" ~ "Kobe Bryant",
+    player == "Sasha Vujačić" ~ "Sasha Vujacic",
+    player == "Steve Nash*" ~ "Steve Nash",
+    player == "Greivis Vásquez" ~ "Greivis Vasquez",
+    player == "Jonas Valančiūnas" ~ "Jonas Valanciunas",
+    player == "Chris Bosh*" ~ "Chris Bosh",
+    player == "Mirza Teletović" ~ "Mirza Teletovic",
+    player == "Dario Šarić" ~ "Dario Saric",
+    player == "Sasha Pavlović" ~ "Sasha Pavlovic",
+    player == "Nikola Mirotić" ~ "Nikola Mirotic",
+    player == "Alexis Ajinça" ~ "Alexis Ajinca",
+    player == "Donatas Motiejūnas" ~ "Donatas Motiejunas",
+    player == "Nicolò Melli" ~ "Nicolo Melli",
+    player == "Willy Hernangómez" ~ "Willy Hernangomez",
+    player == "Álex Abrines" ~ "Alex Abrines",
+    player == "Nenad Krstić" ~ "Nenad Krstic",
+    player == "Théo Maledon" ~ "Theo Maledon",
+    player == "Nikola Vučević" ~ "Nikola Vucevic",
+    player == "Mirza Teletović" ~ "Mirza Teletović",
+    player == "Grant Hill*" ~ "Grant Hill",
+    player == "Dāvis Bertāns" ~ "Davis Bertans",
+    player == "Manu Ginobili" ~ "Manu Ginobili",
+    player == "Tim Duncan*" ~ "Tim Duncan",
+    player == "Luka Šamanić" ~ "Luka Samanic",
+    player == "Jonas Valančiūnas" ~ "Jonas Valanciunas",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Chris Bosh*" ~ "Chris Bosh",
+    player == "Tomáš Satoranský" ~ "Tomas Satoransky",
+    player == "Jan Veselý" ~ "Jan Vesely",
+    player == "Dāvis Bertāns" ~ "Davis Bertans",
+    TRUE ~ player
+  ))
+
+
+
+pbp<-pbp %>%
+  left_join(players,pbp,by=c("participants_0_athlete_id"="athlete_id","season"="season","team_id"="team_id"))
+
+pbp<-pbp %>%
+  mutate(team_abbreviation = case_when(
+    team_abbreviation == "GS" ~ "GSW",
+    team_abbreviation == "SA" ~ "SAS",
+    team_abbreviation == "NY" ~ "NYK",
+    team_abbreviation == "NO" ~ "NOP",
+    team_abbreviation == "UTAH" ~ "UTA",
+    TRUE ~ team_abbreviation
+  ))
+
+pbp<-pbp %>%
+  left_join(clusters,pbp,by=c("athlete_display_name"="player","team_abbreviation"="tm","season"="yr"))
+
+pbp<-pbp %>%
+  dplyr::distinct()
+
+pbp<- pbp %>%
+  mutate(event = case_when(
+    ## SHOT ##
+    type_text %in% c("Jump Shot","Running Jump Shot","Hook Shot","Pullup Jump Shot","Layup Shot","Dunk Shot","Tip Shot","Driving Layup Shot","Driving Dunk Shot","Hook Running Bank","Fade Away Jump Shot","Turnaround Fade Away Jump Shot","Jump Shot Bank","Turnaround Jump Shot","Driving Hook Shot","Step Back Jump Shot","Floating Jump Shot","Driving Floating Jump Shot","Layup Driving Reverse","Turnaround Hook Shot","Driving Finger Roll Layup","Putback Dunk Shot","Alley Oop Dunk Shot","Running Layup Shot","Reverse Layup Shot","Finger Roll Layup","Turnaround Bank Jump Shot","Layup Shot Putback","Running Dunk Shot","Alley Oop Layup Shot","Pullup Bank Jump Shot","Fade Away Bank Jump Shot","Hook Jump Bank","Hook Shot Bank","Reverse Dunk Shot","Driving Jump Shot Bank","Hook Driving Bank","Dunk Putback Slam","Hook Turnaround Bank","Running Finger Roll Layup","Layup Running Reverse","Running Pullup Jump Shot","Turnaround Fadeaway Bank Jump Shot","Driving Floating Bank Jump Shot","Cutting Finger Roll Layup Shot","Step Back Bank Jump Shot","Driving Reverse Dunk Shot","Cutting Dunk Shot","Running Reverse Dunk Shot","Tip Dunk Shot","Cutting Layup Shot","Running Alley Oop Dunk Shot","Running Alley Oop Layup Shot","Dunk Putback Reverse") ~ "Shot",
+    ### FOUL 
+    type_text %in% c("Personal Foul","Shooting Foul","Loose Ball Foul","Personal Take Foul","Flagrant Foul Type 1","Double Personal Foul","Inbound Foul","Flagrant Foul Type 2","Away from Play Foul","Defensive 3-Seconds Technical","Clear Path Foul","Technical Foul","Hanging Technical Foul","Delay Technical","Double Technical Foul","Excess Timeout Technical","Punching Foul","Taunting Technical Foul") ~ "Foul",
+    ## BlOCK
+    type_text %in% c("Personal Block","Shooting Block") ~ "Block",
+    ## OFFENSIVE REBOUND
+    type_text %in% c("Offensive Rebound") ~ "Offensive Rebound",
+    ## TURNOVER
+    type_text %in% c("Defensive Rebound","Bad Pass\nTurnover","Lost Ball Turnover","Shot Clock Turnover","Back Court Turnover","Traveling","Out of Bounds - Bad Pass Turnover","Double Dribble Turnover","Lane Violation Turnover","Palming Turnover","Out of Bounds - Lost Ball Turnover","Offensive Goaltending Turnover","3-Second Turnover","Out of Bounds - Step Turnover","5-Second Turnover","Kicked Ball Turnover","Disc Dribble Turnover","8-Second Turnover","Offensive Foul Turnover","5-Second Back to the Basket Turnover","Inbound Turnover","Illegal Assist Turnover","Basket from Below Turnover","Jumpball Violation Turnover","Punched Ball Turnover","Swinging Elbows Turnover","Too Many Players Turnover","Excess Timeout Turnover","Offensive Foul","Offensive Charge") ~ "Turnover",
+    TRUE ~ as.character(type_text)))
+
+
+
+
+pbp<-pbp %>%
+ left_join(playoffs,ppb,by=c("team_abbreviation"="Team","season"="Yr"))
+
+
+
+
+pergame<-readRDS(file="pergame.rds")
+
+pergame<-pergame %>%
+  left_join(playoffs,pergame,by=c("tm"="Team","yr"="Yr"))
+
+pergame<-pergame %>%
+  mutate(player = case_when(
+    player == "Jusuf Nurkić" ~ "Jusuf Nurkic",
+    player == "Rudy Fernández" ~ "Rudy Fernandez",
+    player == "Sasha Pavlović" ~ "Sasha Pavlovic",
+    player == "Bogdan Bogdanović" ~ "Bogdan Bogdanovic",
+    player == "Dennis Schröder" ~ "Dennis Schroder",
+    player == "Tracy McGrady*" ~ "Tracy McGrady",
+    player == "Vladimir Radmanović" ~ "Vladimir Radmanovic",
+    player == "Kevin Garnett*" ~ "Kevin Garnett",
+    player == "Paul Pierce*" ~ "Paul Pierce",
+    player == "Ray Allen*" ~ "Ray Allen",
+    player == "Bojan Bogdanović" ~ "Bojan Bogdanovic",
+    player == "Džanan Musa" ~ "Dzanan Musa",
+    player == "Kevin Garnett*" ~ "Kevin Garnett",
+    player == "Mirza Teletović" ~ "Mirza Teletovic",
+    player == "Paul Pierce*" ~ "Paul Pierce",
+    player == "Timothé Luwawu-Cabarrot" ~ "Timothe Luwawu-Cabarrot",
+    player == "Eduardo Nájera" ~ "Eduardo Najera",
+    player == "Cristiano Felício" ~ "Cristiano Felicio",
+    player == "Nikola Mirotić" ~ "Nikola Mirotic",
+    player == "Tomáš Satoranský" ~ "Tomas Satoransky",
+    player == "Anderson Varejão" ~ "	Anderson Varejao",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Shaquille O'Neal*" ~ "Shaquille O'Neal",
+    player == "Boban Marjanović" ~ "Boban Marjanovic",
+    player == "Eduardo Nájera" ~ "Eduardo Najera",
+    player == "Jason Kidd*" ~ "Jason Kidd",
+    player == "Kristaps Porziņģis" ~ "Kristaps Porzingis",
+    player == "Luka Dončić" ~ "Luka Doncic",
+    player == "Juan Hernangómez" ~ "Juan Hernangomez",
+    player == "Nenê" ~ "Nene",
+    player == "Nikola Jokić" ~ "Nikola Jokic",
+    player == "Vlatko Čančar" ~ "Vlatko Cancar",
+    player == "Ben Wallace*" ~ "Ben Wallace",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Vladimir Radmanović" ~ "Vladimir Radmanovic",
+    player == "Donatas Motiejūnas" ~ "Donatas Motiejunas",
+    player == "Goran Dragić" ~ "Goran Dragic",
+    player == "Ömer Aşık" ~ "Omer Asık",
+    player == "Damjan Rudež" ~ "Damjan Rudez",
+    player == "Kevin Séraphin" ~ "Kevin Seraphin",
+    player == "Hedo Türkoğlu" ~ "Hedo Turkoglu",
+    player == "Miloš Teodosić" ~ "Milos Teodosic",
+    player == "Kobe Bryant*" ~ "Kobe Bryant",
+    player == "Sasha Vujačić" ~ "Sasha Vujacic",
+    player == "Steve Nash*" ~ "Steve Nash",
+    player == "Greivis Vásquez" ~ "Greivis Vasquez",
+    player == "Jonas Valančiūnas" ~ "Jonas Valanciunas",
+    player == "Chris Bosh*" ~ "Chris Bosh",
+    player == "Mirza Teletović" ~ "Mirza Teletovic",
+    player == "Dario Šarić" ~ "Dario Saric",
+    player == "Sasha Pavlović" ~ "Sasha Pavlovic",
+    player == "Nikola Mirotić" ~ "Nikola Mirotic",
+    player == "Alexis Ajinça" ~ "Alexis Ajinca",
+    player == "Donatas Motiejūnas" ~ "Donatas Motiejunas",
+    player == "Nicolò Melli" ~ "Nicolo Melli",
+    player == "Willy Hernangómez" ~ "Willy Hernangomez",
+    player == "Álex Abrines" ~ "Alex Abrines",
+    player == "Nenad Krstić" ~ "Nenad Krstic",
+    player == "Théo Maledon" ~ "Theo Maledon",
+    player == "Nikola Vučević" ~ "Nikola Vucevic",
+    player == "Mirza Teletović" ~ "Mirza Teletović",
+    player == "Grant Hill*" ~ "Grant Hill",
+    player == "Dāvis Bertāns" ~ "Davis Bertans",
+    player == "Manu Ginobili" ~ "Manu Ginobili",
+    player == "Tim Duncan*" ~ "Tim Duncan",
+    player == "Luka Šamanić" ~ "Luka Samanic",
+    player == "Jonas Valančiūnas" ~ "Jonas Valanciunas",
+    player == "José Calderón" ~ "Jose Calderon",
+    player == "Chris Bosh*" ~ "Chris Bosh",
+    player == "Tomáš Satoranský" ~ "Tomas Satoransky",
+    player == "Jan Veselý" ~ "Jan Vesely",
+    player == "Dāvis Bertāns" ~ "Davis Bertans",
+    TRUE ~ player
+  ))
+
+
+```
+
+## Introduction
+The objective of this analysis is to cluster players in the NBA by their "true position" rather than the traditional PG/SG/SF/PF/C. The modern NBA has become "positionless" and players have been designated specific "roles" on the squad based on their performance. For example, Some athletic centers can now play point guard or in some cases an offense is designed around a specific player. We will seek to find what those "true positions" or clusters are and do some learning as to how those positions look like on different rosters. The key questions we hope to answer are the following: 
+
+1. What player types or "true positions" exist in the NBA and skills do they encompass? 
+2. How are winning teams constructed with these "true positions"? 
+3. Where on the floor are these clusters more efficient in terms of shooting? 
+4. How do these players effect "Win Probability intra-game? 
+5. How do we value these "true positions" in the NBA?
+
+All of these questions, we will be comparing the Portland Trail Blazers to other teams in the NBA. Portland has a long standing history of making the playoffs. Since the inception of the franchise in 1970, the organization has made the playoffs 37 times including a 21 straight appearance streak from 1983 to 2003. Since 2010-11 season, The Portland Trail Blazers only missed the playoffs during the 2011-12 & 2012-13 season. They currently only the league's longest consecutive playoff streak. Given all of that, other teams have eclipsed the Blazers in terms of championship success. The Blazers only conference titles were in 1977, 1990, and 1992. We will be examining where some of the shortcomings may have come from as a way to compare the Blazers to other comparable teams. 
+
+To identify "true positions", we will first do a Principle Components Analysis from 36 variables that encompass a lot of common player statistics such as shooting (FG %, 3P %, etc), Assists, Steals, Blocks, Rebounding, and a number of efficiency metrics (VORP, EFG %). All of these stats are per game statistics. In order to prep the statistics, we need to "scale" the variables as to transform the variables to be all on the same scale. This is important so that not one variable is weighted more than the other just given that it would have a higher overall number. A Principle Components Analysis looks for variables that are highly correlated with each other and combines them into a new variable. This analysis will reduce the 36 variables to a few, highly correlated variables. This is helpful to identify clusters of "skillsets". We can see the PCA Plot below how some of the variables start to cluster together. 
+ 
+```{r a1,echo=FALSE,warning=FALSE,message=FALSE}
+
+
+newdf<-subset(pergame,pergame$g >= 30)
+
+#take out percent values #
+
+newdf<-subset(newdf,select=c("player","mp","fg","fga","fgpercent","x3p","x3pa","x3ppercent","x2p","x2pa","x2ppercent","efgpercent","ft","fta","ftpercent","orb","drb","trb","ast","stl","blk","tov","pf","pts","tspercent","ftr","orbpercent","drbpercent","trbpercent","astpercent","stlpercent","blkpercent","tovpercent","obpm","dbpm","bpm","vorp","yr"))
+
+###let's scale all of the variables ####
+newdf$mp<-scale(newdf$mp)
+newdf$fg<-scale(newdf$fg)
+newdf$fga<-scale(newdf$fga)
+newdf$fgpercent<-scale(newdf$fgpercent)
+newdf$x3p<-scale(newdf$x3p)
+newdf$x3pa<-scale(newdf$x3pa)
+newdf$x3ppercent<-scale(newdf$x3ppercent)
+newdf$x2p<-scale(newdf$x2p)
+newdf$x2pa<-scale(newdf$x2pa)
+newdf$x2ppercent<-scale(newdf$x2ppercent)
+newdf$efgpercent<-scale(newdf$efgpercent)
+newdf$ft<-scale(newdf$ft)
+newdf$fta<-scale(newdf$fta)
+newdf$ftpercent<-scale(newdf$ftpercent)
+newdf$orb<-scale(newdf$orb)
+newdf$drb<-scale(newdf$drb)
+newdf$trb<-scale(newdf$trb)
+newdf$ast<-scale(newdf$ast)
+newdf$stl<-scale(newdf$stl)
+newdf$blk<-scale(newdf$blk)
+newdf$tov<-scale(newdf$tov)
+newdf$pf<-scale(newdf$pf)
+newdf$pts<-scale(newdf$pts)
+newdf$tspercent<-scale(newdf$tspercent)
+newdf$ftr<-scale(newdf$ftr)
+newdf$orbpercent<-scale(newdf$orbpercent)
+newdf$drbpercent<-scale(newdf$drbpercent)
+newdf$trbpercent<-scale(newdf$trbpercent)
+newdf$astpercent<-scale(newdf$astpercent)
+newdf$stlpercent<-scale(newdf$stlpercent)
+newdf$blkpercent<-scale(newdf$blkpercent)
+newdf$tovpercent<-scale(newdf$tovpercent)
+newdf$obpm<-scale(newdf$obpm)
+newdf$dbpm<-scale(newdf$dbpm)
+newdf$bpm<-scale(newdf$bpm)
+newdf$vorp<-scale(newdf$vorp)
+
+nba.pca2 <- princomp(x=na.omit(newdf[,2:37]),cor=TRUE)
+
+fviz_pca_var(nba.pca2,col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = FALSE 
+) + theme_minimal() + ggtitle("NBA PCA")
+
+
+
+
+
+```
+
+The "Scree Plot" is a useful visualization to show how much variance is explained in each newly constructed "PCA" variables. We can see the 1st dimension combined 37% of the variables into 1 dimension, the 2nd dimension is comprised of the 21.8% of the variables and so on. For our analysis, we will be using the first 6 dimensions as that encompasses 83.1% of the original variables. This is a sufficiently high percentage for us.
+
+```{r a2, echo=FALSE}
+
+fviz_screeplot(nba.pca2,addlabels=TRUE) +
+    ggtitle("PCA Variable Contribution Percentage (Scree Plot)") +
+  theme(plot.title = element_text(size=14))
+
+
+
+
+
+
+```
+
+The following 6 charts help to explain what each of those newly constructed PCA variables are comprised of from the original variables. Our first (37.3% variance explained) is made up of "Scoring" variables. The 2nd (21.8% variance explained) is made up of "Rebounding" variables. As we notice from the "Scree Plot" from here the variables start to drop off in secondary variables and loose formations from the original variables. Our 3rd variable is comprised of Effective Field Goal Percentage (EFG %) and True Shooting Pct % (TSPercent). Our 4th variable is made up of "Defensive" metrics of Defensive Box Plus/Minus (DBPM) and "Steal Percentage". The 5th and 6th variables are very specific with the 5th only really accounting for Free Throw Rate and the 6th being just Turnover Over Percent (TOV%) or Ball Handling. The combined variables can be thought of a "skillset" comprised of each true position. 
+
+```{r a3,echo=FALSE,message=FALSE,warning=FALSE}
+
+
+
+nbavar2<-get_pca_var(nba.pca2)
+#1st PCA
+g1<-fviz_contrib(nba.pca2,choice="var",axes=1,top=5) +
+  ggtitle("Scoring Variable (PCA 1)") +
+  theme(plot.title = element_text(size=10))
+g2<-fviz_contrib(nba.pca2,choice="var",axes=2,top=5) +
+  ggtitle("Rebound Variable (PCA 2)") +
+theme(plot.title = element_text(size=10))
+g3<-fviz_contrib(nba.pca2,choice="var",axes=3,top=5)+
+  ggtitle("Shooting Efficiency (PCA 3)") +
+  theme(plot.title = element_text(size=10))
+g4<-fviz_contrib(nba.pca2,choice="var",axes=4,top=5)+
+  ggtitle("Defense (PCA 4)") +
+  theme(plot.title = element_text(size=10))
+g5<-fviz_contrib(nba.pca2,choice="var",axes=5,top=5)+
+  ggtitle("Free Throws (PCA 5)") +
+  theme(plot.title = element_text(size=10))
+g6<-fviz_contrib(nba.pca2,choice="var",axes=6,top=5)+
+  ggtitle("Ball Handling (PCA 6)") +
+  theme(plot.title = element_text(size=10))
+
+### combine charts via ggarrange
+
+fig<-ggarrange(g1,g2,g3,g4,g5,g6,nrow=3,ncol=2)
+
+annotate_figure(fig,
+                top = text_grob("PCA Variables",color="Dark Blue",face="bold",size=12))
+
+
+
+```
+
+
+
+With our variables cleaned up and combined, we will now perform a K-means cluster analysis, a form of Unsupervised Machine Learning to reduce the rows of data into grouped clusters. This will help us identify how many "true positions" exist amongst all the players statistics. Essentially, the K-means iterates through to figure out the average of all PCA variables and helps to assign a cluster variable to players with similar average values across all inputted variables. In order to determine how many clusters exist, we can several different methods. We will be using a Sum of Square method to identify appropriate number of clusters amongst the data points. The goal of this percentage is to to say how much total variance of the data set can be explained by clustering. The overall goal of K-means is to minimize the within group dispersion and maximize the between-group dispersion. More simply put, it's better to find a few broad clusters that can encompass many players than very specific clusters that would over-generalize their group fit. 
+
+The table below shows that at 7 clusters, we can account for a majority of the variance at 52% of the dataset. This figure is without the inputted PCA variables. 52% is a low enough number to account for the generality. These numbers also tell us that there a lot of players with very specific player profiles. 
+
+
+```{r a4,echo=FALSE}
+
+
+newdf$rownames<-row.names(newdf)
+newdf1<-newdf
+
+newdf1$player<-row.names(newdf1[,1])
+newdf1<-na.omit(newdf1[,1:39])
+
+newdf1$player<-as.numeric(newdf1$player)
+newdf1$rownames<-as.numeric(newdf1$rownames)
+#str(df1)
+
+#df1<-scale(df1)
+new_kpergame<-na.omit(newdf1[,2:37])
+#kerpgame<-scale(kpergame)
+
+#fviz_nbclust(new_kpergame,kmeans, method = "wss")
+
+
+kmeans_ss <- function(centers) {
+  kmeans_object <- kmeans(new_kpergame, centers = centers)
+  tibble(k = centers,
+         between_ss_per =  kmeans_object$betweenss/kmeans_object$totss
+  )
+}
+
+3:10 %>% 
+  purrr::map_df(kmeans_ss) %>%
+  kable(caption = "Cluster K Between SS Percentage % (Non-PCA)") %>%
+  kable_styling(font_size = 12) %>%
+  row_spec(5,bold=T,color="white",background="green")
+  
+
+### 7 clusters 
+
+
+```
+
+This chart below shows the overlapping of some of the 7 clusters in overall similarity. If we had a higher "K" cluster, we would have more overlap. 
+
+```{r a5,echo=FALSE,message=FALSE,warning=FALSE}
+
+
+
+#mirrors our scree plot; using "elbow technique" it looks like 7 has the significant drop-off point
+newk2<-kmeans(new_kpergame,center=7)
+
+
+#sum of squares by cluster is 53.1%, which is really low; let's find a higher score
+
+fviz_cluster(newk2,data=new_kpergame,geom="point") +
+  ggtitle("Cluster Plot (Non-PCA, K=7)")
+
+
+
+
+
+```
+
+Next, we input our K-means with our newly constructed PCA variables. As we can see, we get a 61% Sum of Square Percentage at 7 clusters, which tells us that the indiviudal statistics were causing too much variation. By combining some highly correlated statitics, we were able to reduce overall variance. 
+
+```{r a6,echo=FALSE,message=FALSE,warning=FALSE}
+
+#using PCA
+#k3<-kmeans(kpergame,center=8)
+#print(k3)
+
+
+#####Let's use the PCA to optimize the clusters & join back to the df dataset ####
+nbapca.scores2 <- as.data.frame(nba.pca2$scores)
+
+
+
+#nba.pca using first 7 PCA metrics
+nbapca.score2<-subset(nbapca.scores2,select=c("Comp.1","Comp.2","Comp.3","Comp.4","Comp.5","Comp.6"))
+
+kmeans_ss_pca <- function(centers) {
+  kmeans_object <- kmeans(nbapca.score2, centers = centers)
+  tibble(k = centers,
+         between_ss_per =  kmeans_object$betweenss/kmeans_object$totss
+  )
+}
+
+3:10 %>% 
+  purrr::map_df(kmeans_ss_pca) %>%
+  kable(caption = "Cluster K Between SS Percentage (PCA Variables) %") %>%
+  kable_styling(font_size = 12) %>%
+  row_spec(5,bold=T,color="white",background="green")
+
+
+
+
+
+
+
+```
+
+We still have some overall overlap with the PCA variables inputted but that may be expected. 
+
+```{r a7,echo=FALSE,message=FALSE,warning=FALSE}
+
+
+k4<-kmeans(nbapca.score2,centers=7)
+
+#k5<-kmeans(nbapca.score2,centers=8)
+
+fviz_cluster(k4,data=new_kpergame,geom="point") +
+  ggtitle("Cluster Plot (PCA Variables, K=7)")
+#fviz_cluster(k5,data=kpergame,geom="point")
+
+
+
+
+
+
+
+
+```
+
+With 7 clusters determined from our dataset, we've renamed the clusters with more common names that we can interpret from. The following table shows how the PCA variables align in terms cluster fits. More simply put, what skillsets each "true positions" are made up off. In terms of the 7 clusters, we have identified the following names from the clusters: "Superstars", "Scoring Big Men", "Perimeter Wing/Defenders", "Floor Generals", "Defensive Big Men", "Perimeter Shooter" and "Role Players". "Superstars" are your all-around players and have the highest value on the team in terms of scoring, some defense, and shooting efficiency. They lack in terms of rebounding and defense, which the Scoring Big Men are better at. These are the primary "All-stars" on the roster. Perimeter Wings/Defenders are your secondary superstar scorers and have an all-around game. Defense Big Men are secondary Scoring Big Man with more of a focus on defense and rebounding. Floor Generals are efficient scorers, passers and ball handling. They likely don't show up too much in the box score. Perimeter Shooters are your sparks off the bench but are one-way offense backups and don't really provide much value in terms of defense. Lastly, Role Players are your scrubs and rotation players that don't have much value all around in terms of game statistics. The PCA averages can be a bit difficult to interpret but for "Rebounding" and "Shooting Efficiency", the highest value is negative. For the other variables, the higher the positive value the more that player in the cluster is better at that specific variable. 
+
+VORP = Value over replacement player (Box score estimate of estimate points per 100 team possessions that a player contributes over a replacement or average player during that time frame); Kobe Bryant averaged around a 8 in VORP, Lebron James averages a 9 VORP, Michael Jordan averaged a 10 in VORP. Those are top-end numbers. 
+
+```{r a8,echo=FALSE}
+
+
+opt_cluster<-k4$cluster
+
+opt_cluster<-data.table(rownames(k4$cluster),k4$cluster)
+opt_cluster$rownames<-seq.int(nrow(opt_cluster))
+
+newdf2<-subset(pergame,pergame$g >= 30)
+
+#take out percent values #
+
+newdf2<-subset(newdf2,select=c("player","pos","age","tm","mp","fg","fga","fgpercent","x3p","x3pa","x3ppercent","x2p","x2pa","x2ppercent","efgpercent","ft","fta","ftpercent","orb","drb","trb","ast","stl","blk","tov","pf","pts","tspercent","ftr","orbpercent","drbpercent","trbpercent","astpercent","stlpercent","blkpercent","tovpercent","obpm","dbpm","bpm","vorp","yr"))
+
+
+newdf2<-na.omit(newdf2[,1:41])
+
+#newdf2$rownames<-row.names(newdf2)
+
+#df1$player<-row.names(df1[,1])
+
+
+
+#newdf2$rownames<-as.integer(newdf2$rownames)
+#opt_cluster$rownames<-as.integer(opt_cluster$rownames)
+
+#clusters<-read.csv("nba_clusters.csv")
+
+newdf2<-cbind(newdf2,nbapca.score2)
+
+newdf2<- newdf2 %>%
+  left_join(clusters,newdf2,by=c("player" = "player","tm" = "tm","yr"="yr"))
+
+newdf2<-newdf2 %>%
+    distinct(.keep_all = TRUE)
+
+
+newdf2<-newdf2 %>%
+  mutate(V1 = case_when(
+    V1 == "Driving Scorer" ~ "Perimeter Shooter",
+    V1 == "Role Player" ~ "Role Player",
+    V1 == "Perimeter Wings/Defenders" ~ "Perimeter Wing/Defender",
+    V1 == "Superstars" ~ "Superstar",
+    V1 == "Defensive Big Man" ~ "Defensive Big Man",
+    V1 == "Scoring Big Man" ~ "Scoring Big Man",
+    V1 == "Floor Generals" ~ "Floor General"
+  ))
+#newdf2<-cbind(newdf2,nbapca.score2)
+
+
+## need to check clusters
+#newdf2<-newdf2 %>% 
+#    mutate(V1 = case_when(
+#    V1 == 1 ~ "Superstars",
+#    V1 == 2 ~ "Role Player",   ##role player or driving scorer?
+#    V1 == 3 ~ "Perimeter Wings/Defenders",
+#    V1 == 4 ~ "Defensive Big Man",
+#    V1 == 5 ~ "Scoring Big Man",
+#    V1 == 6 ~ "Floor Generals",
+#    V1 == 7 ~ "Driving Scorer"))   #Perimeter Shooters? 
+
+
+
+#clusters<-newdf2 %>% select(player,pos,tm,yr,V1)
+#write.csv(clusters,file="nba_clusters.csv")
+
+
+
+
+newdf2 %>%
+  dplyr::group_by(V1) %>%
+  rename(Cluster = V1,
+         Scoring = Comp.1,
+         Rebounding = Comp.2,
+         ShootingEff = Comp.3,
+         Defense = Comp.4,
+         FreeThrows = Comp.5,
+         BallHandling = Comp.6
+         ) %>%
+  summarize(Player_Count = n(),
+            VORP = round(mean(vorp),2),
+            Scoring = round(mean(Scoring),2),
+            Rebounding = round(mean(Rebounding),2),
+            ShootingEff = round(mean(ShootingEff),2),
+            Defense = round(mean(Defense),2),
+            FreeThrows = round(mean(FreeThrows),2),
+            BallHandling = round(mean(BallHandling),2)) %>%
+  arrange(desc(VORP)) %>%
+  kable(caption = "PCA Value Avgs. Per Cluster") %>%
+  kable_styling(font_size=12) %>%
+  add_footnote(label = "Rebounding/ShootingEff is the only value where a negative value is highest")
+
+
+```
+
+# Trail Blazers Analysis 
+
+Now that we have our clusters built and assigned it's now time to look at how the Trail Blazers roster has been constructed. 
+
+In order to do so, we need to establish some context in terms of team's performance. 2018 was likely the biggest underachieving year given they were a 3rd seed and had a first round exit. 2019 was the best final result in a Western Conference Final appearance (CF stands out Conference Final exit). 2020 & 2021 featured two first round exits for the Blazers. The 2019 is likely considered the best team constructed for the Blazers. We will dive into why the team fell so much in terms of performance after the 2019 season. 
+
+```{r a9,echo=FALSE,warning=FALSE,message=FALSE}
+
+
+##### now let's compare to Playoff and NBA finals rosters #####
+
+#pcts<-pcts %>%
+#  mutate(Defensive.Big.Man = scales::percent(Defensive.Big.Man),
+#         Driving.Scorer = scales::percent(Driving.Scorer),
+#         Floor.Generals = scales::percent(Floor.Generals),
+#         Perimeter.Wings.Defenders = #scales::percent(Perimeter.Wings.Defenders),
+#         Role.Player = scales::percent(Role.Player),
+#         Scoring.Big.Man = scales::percent(Scoring.Big.Man),
+#         Superstars = scales::percent(Superstars))
+
+
+playoffs %>%
+  filter(Team == "POR") %>%
+  dplyr::select(-Conf.) %>%
+  rename(Year = Yr) %>%
+  kable(caption = "Portland Trail Blazers Playoff Results by Year") %>%
+  kable_styling(font_size=12) %>%
+  add_footnote(label = c("FR = First Round","SEMI = 2nd round exit","CF = Conference Finals exit")) %>%
+  row_spec(8,bold=T,color="white",background="green") %>%
+  row_spec(7,bold=T,color="white",background="red")
+
+
+
+
+
+```
+
+Now that we have an understanding of the clusters in our dataset, it's important to now understand how Portland's roster has been constructed in relation to other Playoff & Championship teams. As we saw earlier we saw earlier Scoring Big Men aren't too far off from Superstars in terms of value added to the roster. 
+
+The two charts below show % of Superstars & Scoring Big Men on each roster since 2010. Every Championship team since 2010 has had at least 2 Superstars or Scoring Big Man (or combination of the two) on the team with the exception of 2014 & 2011 teams. Superstars are good on all facets of their games. They are excellent at scoring, defense and elevating others. The difference between them and Scoring Big Men are that Scoring Big Men are better rebounders. If we breakdown the last 10 champions, here are notable players from their roster in terms of being either a Scoring Big Man or Superstar. 
+
+2021 MIL: Middleton (Superstar), Holiday (Superstar), Antetokounmpo (Scoring Big Man) 
+
+2020 LAL: James (Superstar), Davis (Scoring Big Man) 
+
+2019 TOR: Leonard (Superstar), Lowry (Superstar), Siakam (Scoring Big Man), Valanciunas (Scoring Big Man), Ibaka (Scoring Big Man) 
+
+2018 GSW: Curry (Superstar), Durant (Superstar), Green (Scoring Big Man) 
+
+2017 GSW: Curry (Superstar), Durant (Superstar), Green (Scoring Big Man) 
+
+2016 CLE: James (Superstar), Irving (Superstar), Love (Scoring Big Man) 
+
+2015 GSW: Curry (Superstar), Thompson (Superstar), Green (Scoring Big Man) 
+
+2014 SAS: Duncan (Scoring Big Man) 
+
+2013 MIA: James (Superstar), Wade (Superstar), Bosh (Scoring Big Man) 
+
+2012 MIA: James (Superstar), Wade (Superstar), Bosh (Scoring Big Man) 
+
+2011 DAL: Nowitzki (Superstar) 
+
+2010 LAL: Bryant (Superstar), Gasol (Scoring Big Man), Odom (Scoring Big Man), Bynum (Scoring Big Man)  
+
+
+In terms of roster, the Blazers have looked like the following over the years: 
+
+2021 POR: Lillard (Superstar), Nurkic (Scoring Big Man), Kanter (Scoring Big Man) 
+
+2020 POR: Lillard (Superstar), Whiteside (Scoring Big Man) 
+
+2019 POR: Lillard (Superstar), Nurkic (Scoring Big Man) 
+
+2018 POR: Lillard (Superstar), Nurkic (Scoring Big Man) 
+
+2017 POR: Lillard (Superstar), McCollum (Superstar), Plumlee (Scoring Big Man) 
+
+2016 POR: Lillard (Superstar), McCollum (Superstar), Plumlee (Scoring Big Man) 
+
+2015 POR: Lillard (Superstar), Aldridge (Scoring Big Man) 
+
+2014 POR: Lillard (Superstar), Aldridge (Scoring Big Man), Lopez (Scoring Big Man) 
+
+2013 POR: Lillard (Superstar), Aldridge (Scoring Big Man), Hickson (Scoring Big Man) 
+
+2012 POR: Aldridge (Scoring Big Man) 
+
+2011 POR: Aldridge (Scoring Big Man) 
+
+2010 POR: Roy (Superstar), Aldridge (Scoring Big Man)  
+
+Here are a couple notes regarding Portland's roster: CJ McCollum hasn't been playing at Superstar level since 2017. Damian Lillard has been the only Superstar on the roster since compared to other Championship Level teams. In terms of player Archetype, players have stepped up (sort of) to be that potential sidekick with Damian Lillard but as you can see the person is diferent from year to year. One interesting question here is if McCollum's game was stifled by the addition to Nurkic to the roster. 
+
+```{r a10,echo=FALSE,message=FALSE}
+
+pdx<-newdf2 %>%
+  filter(tm == "POR")
+
+
+
+
+pdx_sum<-pdx %>%
+  group_by(V1,yr) %>%
+  summarize(Total = n()) %>%
+  arrange(desc(yr)) %>%
+  spread(V1,Total) 
+
+pdx_sum[is.na(pdx_sum)]<-0
+
+total_col = apply(pdx_sum[-1],1,sum)
+
+pcts = lapply(pdx_sum[,-1],function(x) {
+  x / total_col
+})
+
+pcts = as.data.frame(pcts)
+pcts<-cbind(pdx_sum[,1],pcts)
+
+pcts$tm<-"POR"
+
+
+
+##### PLAYOFF TEAMS #######
+playoffs_roster<-pergame %>%
+  filter(complete.cases(Seed),
+         tm != "POR",
+         g >= 30)
+
+
+#clusters<-read.csv("nba_clusters.csv")
+
+playoffs_roster<- playoffs_roster %>%
+  left_join(clusters,playoffs_roster,by=c("player" = "player","tm" = "tm","yr"="yr"))
+
+sas<-playoffs_roster %>%
+  filter(tm == "MIL",
+         yr == "2021")
+
+playoffs_roster<-playoffs_roster %>%
+  mutate(V1 = case_when(
+    V1 == "Driving Scorer" ~ "Perimeter Shooter",
+    V1 == "Role Player" ~ "Role Player",
+    V1 == "Perimeter Wings/Defenders" ~ "Perimeter Wing/Defender",
+    V1 == "Superstars" ~ "Superstar",
+    V1 == "Defensive Big Man" ~ "Defensive Big Man",
+    V1 == "Scoring Big Man" ~ "Scoring Big Man",
+    V1 == "Floor Generals" ~ "Floor General"
+  ))
+
+#playoffs_roster<-playoffs_roster %>% dplyr::select(-X)
+playoffs_roster<-playoffs_roster %>% distinct()
+
+#test<-subset(playoffs_roster,playoffs_roster$yr == "2021")
+
+
+playoffs_sum<-playoffs_roster %>%
+  group_by(V1,yr) %>%
+  summarize(Total = n()) %>%
+  arrange(desc(yr)) %>%
+  spread(V1,Total) 
+
+playoffs_sum[is.na(playoffs_sum)]<-0
+
+total_col = apply(playoffs_sum[-1],1,sum)
+
+playoff_pcts = lapply(playoffs_sum[,-1],function(x) {
+  x / total_col
+})
+
+playoff_pcts = as.data.frame(playoff_pcts)
+playoff_pcts<-cbind(playoffs_sum[,1],playoff_pcts)
+
+playoff_pcts$tm<-"Playoff Teams"
+
+#playoff_pcts<-playoff_pcts %>%
+#  mutate(Defensive.Big.Man = scales::percent(Defensive.Big.Man),
+#         Driving.Scorer = scales::percent(Driving.Scorer),
+#         Floor.Generals = scales::percent(Floor.Generals),
+#         Perimeter.Wings.Defenders = #scales::percent(Perimeter.Wings.Defenders),
+#         Role.Player = scales::percent(Role.Player),
+#         Scoring.Big.Man = scales::percent(Scoring.Big.Man),
+#         Superstars = scales::percent(Superstars))
+
+playoff_pcts<-playoff_pcts %>% dplyr::select(-X.NA.)
+
+
+#### FINALS ROSTER #####
+finals_roster<-playoffs_roster %>%
+  filter(Result %in% c("Champ","RunnerUp"))
+
+
+finals_sum<-finals_roster %>%
+  group_by(V1,yr) %>%
+  summarize(Total = n()) %>%
+  arrange(desc(yr)) %>%
+  spread(V1,Total) 
+
+finals_sum[is.na(finals_sum)]<-0
+
+total_col = apply(finals_sum[-1],1,sum)
+
+finals_pcts = lapply(finals_sum[,-1],function(x) {
+  x / total_col
+})
+
+finals_pcts = as.data.frame(finals_pcts)
+finals_pcts<-cbind(finals_sum[,1],finals_pcts)
+
+finals_pcts$tm<-"Finals Teams"
+
+#finals_pcts<-finals_pcts %>%
+#  mutate(Defensive.Big.Man = scales::percent(Defensive.Big.Man),
+#         Driving.Scorer = scales::percent(Driving.Scorer),
+#         Floor.Generals = scales::percent(Floor.Generals),
+#         Perimeter.Wings.Defenders = #scales::percent(Perimeter.Wings.Defenders),
+#         Role.Player = scales::percent(Role.Player),
+#         Scoring.Big.Man = scales::percent(Scoring.Big.Man),
+#         Superstars = scales::percent(Superstars))
+
+finals_pcts<-finals_pcts %>% dplyr::select(-X.NA.)
+
+
+#### CHAMPS ROSTER ###########
+champ_roster<-playoffs_roster %>%
+  filter(Result %in% c("Champ"))
+
+
+champ_sum<-champ_roster %>%
+  group_by(V1,yr) %>%
+  summarize(Total = n()) %>%
+  arrange(desc(yr)) %>%
+  spread(V1,Total) 
+
+champ_sum[is.na(champ_sum)]<-0
+
+total_col = apply(champ_sum[-1],1,sum)
+
+champ_pcts = lapply(champ_sum[,-1],function(x) {
+  x / total_col
+})
+
+champ_pcts = as.data.frame(champ_pcts)
+champ_pcts<-cbind(champ_sum[,1],champ_pcts)
+
+champ_pcts$tm<-"Championship Teams"
+
+#champ_pcts<-champ_pcts %>%
+#  mutate(Defensive.Big.Man = scales::percent(Defensive.Big.Man),
+#         Driving.Scorer = scales::percent(Driving.Scorer),
+#         Floor.Generals = scales::percent(Floor.Generals),
+#         Perimeter.Wings.Defenders = #scales::percent(Perimeter.Wings.Defenders),
+#         Role.Player = scales::percent(Role.Player),
+#         Scoring.Big.Man = scales::percent(Scoring.Big.Man),
+#         Superstars = scales::percent(Superstars))
+
+champ_pcts<-champ_pcts %>% dplyr::select(-X.NA.)
+
+
+###### BIND ALL OF THE DATA TOGETHER #######
+compare_pcts<-rbind(pcts,playoff_pcts)
+compare_pcts<-rbind(compare_pcts,finals_pcts)
+compare_pcts<-rbind(compare_pcts,champ_pcts)
+
+compare_pcts[,2:8]<-round(compare_pcts[,2:8],2)
+
+
+#write.csv(compare_pcts,file="compare_pcts")
+
+
+
+
+
+ggplot(data=compare_pcts) +
+  geom_bar(aes(x=tm,
+               y=Superstar,
+               group=tm,
+               fill=tm,
+               color=tm),
+               stat="identity") +
+  coord_flip() +
+  facet_wrap(~yr) +
+  geom_text(aes(x=tm,y=Superstar,label=Superstar),hjust=1,size=3,position = position_dodge(.9),color="black") +
+  theme(legend.position = "none",
+       axis.text.x = element_blank(),
+              axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "% of Superstars on Roster",
+       caption = "Filtered for players w/ >30 games played") +
+  scale_fill_brewer(palette = "BuPu") +
+  scale_color_brewer(palette = "BuPu")
+
+#axis.text.x = element_text(angle=90,vjust=0.5,hjust=1),
+
+
+
+
+
+```
+
+
+
+```{r a11,echo=FALSE,warning=FALSE}
+
+
+ggplot(data=compare_pcts) +
+  geom_bar(aes(x=tm,
+               y=Scoring.Big.Man,
+               group=tm,
+               fill=tm,
+               color=tm),
+               stat="identity") +
+  coord_flip() +
+  facet_wrap(~yr) +
+  geom_text(aes(x=tm,y=Scoring.Big.Man,label=Scoring.Big.Man),hjust=1,size=3,position = position_dodge(.9),color="black") +
+  theme(legend.position = "none",
+        axis.ticks = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "% of Scoring Big Men on Roster",
+       caption = "Filtered for players w/ >30 games played") +
+  scale_fill_brewer(palette = "BuPu") +
+  scale_color_brewer(palette = "BuPu")
+
+
+
+
+
+
+```
+
+Put simply, Portland has been at its best when its had more Perimeter Shooters on the roster. We can see for 2020 & 2021, there wasn't as much perimeter shooters, which left Damian Lillard/CJ McCollum having to shoulder the load of shooting. Instead the Blazers shifted in roster strategy to opt for more all-around perimeter defenders vs. the fully offensive perimeter shooters. I'm not saying to sacrifice defense but getting players on the roster who are more defensive players didn't work well for the 2020 & 2021 Blazers. The Perimeter Shooters on the Blazers in team in 2018 & 2019 were Seth Curry (2019), Jake Layman (2019), Meyers Leonard (2018/19), Pat Connaughton (2018), Maurice Harkless (2018) and Evan Turner (2018). The only shooters left on the team for 2020/2021 were Anfernee Simons, Gary Trent Jr. (traded in 2021) and Nassir Little (only for 2021). It may be wise for the Blazers to sign a dedicated Perimeter Shooter to jolt the secondary offense as Seth Curry would have for the Blazers in the past. Another concern for the Blazers, is the high % of "Role Players" on the roster compared to other playoff teams in 2020/21. This is due solely to low performance. The 2020 squad had a high % of Role Players in Kent Bazemore, Mario Hezonja, Nassir Little, and Anthony Tolliver. In short, most of the players were purely bad signing for the Blazers. Not surprisingly, the 2019 roster had no "Role Players" as the entire roster had an elevated role with the team. The 2018 role players were Zach Collins and Jake Layman who both developed out of those roles in the 2019 season. It's not uncommon to see young players designated as "Role Players" (i.e. Zach Collins/Jake Layman) but having veterans with the role player designation is just wasted roster capital. 
+
+```{r a12,echo=FALSE,message=FALSE,warning=FALSE}
+
+
+ggplot(data=compare_pcts) +
+  geom_bar(aes(x=tm,
+               y=Perimeter.Wing.Defender,
+               group=tm,
+               fill=tm,
+               color=tm),
+               stat="identity") +
+  coord_flip() +
+  facet_wrap(~yr) +
+  geom_text(aes(x=tm,y=Perimeter.Wing.Defender,label=Perimeter.Wing.Defender),hjust=1,size=3,position = position_dodge(.9),color="black") +
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+               axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "% of Perimeter Wings/Defenders on Roster",
+       caption = "Filtered for players w/ >30 games played") +
+  scale_fill_brewer(palette = "BuPu") +
+  scale_color_brewer(palette = "BuPu")
+
+
+
+ggplot(data=compare_pcts) +
+  geom_bar(aes(x=tm,
+               y=Defensive.Big.Man,
+               group=tm,
+               fill=tm,
+               color=tm),
+               stat="identity") +
+  coord_flip() +
+  facet_wrap(~yr) +
+  geom_text(aes(x=tm,y=Defensive.Big.Man,label=Defensive.Big.Man),hjust=1,size=3,position = position_dodge(.9),color="black") +
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+               axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "% of Defensive.Big.Man on Roster",
+       caption = "Filtered for players w/ >30 games played") +
+  scale_fill_brewer(palette = "BuPu") +
+  scale_color_brewer(palette = "BuPu")
+
+
+ggplot(data=compare_pcts) +
+  geom_bar(aes(x=tm,
+               y=Floor.General,
+               group=tm,
+               fill=tm,
+               color=tm),
+               stat="identity") +
+  coord_flip() +
+  facet_wrap(~yr) +
+  geom_text(aes(x=tm,y=Floor.General,label=Floor.General),hjust=1,size=3,position = position_dodge(.9),color="black") +
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+               axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "% of Floor Generals on Roster",
+       caption = "Filtered for players w/ >30 games played") +
+  scale_fill_brewer(palette = "BuPu") +
+  scale_color_brewer(palette = "BuPu")
+
+
+ggplot(data=compare_pcts) +
+  geom_bar(aes(x=tm,
+               y=Perimeter.Shooter,
+               group=tm,
+               fill=tm,
+               color=tm),
+               stat="identity") +
+  coord_flip() +
+  facet_wrap(~yr) +
+  geom_text(aes(x=tm,y=Perimeter.Shooter,label=Perimeter.Shooter),hjust=1,size=3,position = position_dodge(.9),color="black") +
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+               axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "% of Perimeter Shooters on Roster",
+       caption = "Filtered for players w/ >30 games played") +
+  scale_fill_brewer(palette = "BuPu") +
+  scale_color_brewer(palette = "BuPu")
+
+
+ggplot(data=compare_pcts) +
+  geom_bar(aes(x=tm,
+               y=Role.Player,
+               group=tm,
+               fill=tm,
+               color=tm),
+               stat="identity") +
+  coord_flip() +
+  facet_wrap(~yr) +
+  geom_text(aes(x=tm,y=Role.Player,label=Role.Player),hjust=1,size=3,position = position_dodge(.9),color="black") +
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+               axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "% of Role Player on Roster",
+       caption = "Filtered for players w/ >30 games played") +
+  scale_fill_brewer(palette = "BuPu") +
+  scale_color_brewer(palette = "BuPu")
+
+
+
+```
+
+### Shooting Tendencies by Cluster
+
+Next we want to look at where on the court different clusters end up shooting effiently from. Obviously, this could change from team to team but know a team's deficiencies and what player types excel in those deficiencies could improve an offense. 
+
+Portland usually shoots at a higher level on left/right wing compared to other playoff teams. We can attribute the Wing performance to Dame & CJ's shooting zone. Portland lacks in shooting in the Paint and the Corners compared to other Playoff teams dating back to 2016. Given the change of "Scoring Big Man" YoY, we attribute the volatilty in the paint due to reliability of a scoring big man to play alongside Dame/CJ. What's interesting is the improvement of the Paint FG % amongst Playoff teams over time. The 2020 squad was the best shooting in team in the past 6 seasons for the Blazers albeit a short season. 
+
+Link to shooting zones: https://thevi5ion.wordpress.com/2019/03/10/college-basketball-shot-chart-tool/ 
+
+```{r a13,echo=FALSE,message=FALSE,warning=FALSE}
+
+
+#### 2016 and after
+por_shots<-pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         complete.cases(Result),
+         team_abbreviation == "POR") %>%
+  group_by(season,Zone) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0)) %>%
+  summarize(Shots = n(),
+            MadePct = round(sum(MadeBasket) / n(),2)) %>%
+  arrange(desc(MadePct)) %>%
+  pivot_wider(id_cols = c(season),
+              names_from = Zone,
+              values_from = c("Shots","MadePct"))
+
+
+#### join onto championship, finals to compare where they have their shots over time
+playoffs_shots<-pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         complete.cases(Result)) %>%
+  group_by(season,Zone) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0),
+         ) %>%
+  summarize(Shots = n(),
+            MadePct = round(sum(MadeBasket) / n(),2)) %>%
+  arrange(desc(MadePct)) %>%
+  pivot_wider(id_cols = c(season),
+              names_from = Zone,
+              values_from = c("Shots","MadePct"))  
+
+
+finals_shots<-pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         Result %in% c("Champ","RunnerUp")) %>%
+  group_by(season,Zone) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0)) %>%
+  summarize(Shots = n(),
+            MadePct = round(sum(MadeBasket) / n(),2)) %>%
+  arrange(desc(MadePct)) %>%
+  pivot_wider(id_cols = c(season),
+              names_from = Zone,
+              values_from = c("Shots","MadePct"))  
+
+
+champ_shots<-pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         Result %in% c("Champ")) %>%
+  group_by(season,Zone) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0)) %>%
+  summarize(Shots = n(),
+            MadePct = round(sum(MadeBasket) / n(),2)) %>%
+  arrange(desc(MadePct)) %>%
+  pivot_wider(id_cols = c(season),
+              names_from = Zone,
+              values_from = c("Shots","MadePct"))  
+
+
+#add table breakout before binding 
+por_shots$tm<-"POR"
+playoffs_shots$tm<-"Playoff"
+finals_shots$tm<-"Finals"
+champ_shots$tm<-"Champs"
+
+compare_shots<-rbind(por_shots,playoffs_shots)
+compare_shots<-rbind(compare_shots,finals_shots)
+compare_shots<-rbind(compare_shots,champ_shots)
+
+
+#### visualize SUPERSTARS ####
+table_viz_superstars<-compare_shots %>%
+  dplyr::group_by(season,tm) %>%
+  dplyr::select(season,tm,`MadePct_Paint`,`MadePct_Left Corner`,`MadePct_Right Corner`,`MadePct_Left Wing`,`MadePct_Right Wing`,`MadePct_Left Baseline`,`MadePct_Right Baseline`,`MadePct_Left Elbow`,`MadePct_Right Elbow`) %>%
+  dplyr::rename(Year = season,
+          Team = tm,
+          Paint = `MadePct_Paint`,
+          `Left Corner` = `MadePct_Left Corner`,
+          `Right Corner` = `MadePct_Right Corner`,
+          `Left Wing` = `MadePct_Left Wing`,
+          `Right Wing` = `MadePct_Right Wing`,
+          `Left Baseline` = `MadePct_Left Baseline`,
+          `Right Baseline` = `MadePct_Right Baseline`,
+          `Left Elbow` = `MadePct_Left Elbow`,
+          `Right Elbow` = `MadePct_Right Elbow`) %>%
+  dplyr::arrange(desc(Team),Year) 
+
+table_viz_superstars %>%
+  dplyr::select(-Team) %>%
+  kable(caption = "FG Pct by Shooting Zone") %>%
+  group_rows("Portland",1,6) %>%
+  group_rows("Playoff Teams",7,12) %>%
+  group_rows("Finals Teams",13,18) %>%
+  group_rows("Championship Teams",19,24) %>%
+  kable_styling(font_size = 10) %>%
+  row_spec(5,bold=T,color="white",background="green")
+  
+
+
+
+
+
+```
+
+When looking at specific Player cluster shooting performance by Shooting Zone, we can see that Perimeter Shooters are more likely to score higher in the paint. This could be their nature to be both spot up shooters and screening to an open layup given their movement on the floor. The Blazers' Perimeter Wings/Defenders are less efficient in the Paint compared to other playoff team, which may be why more playoff teams have a higher percentage of Perimeter Shooters on the roster. One other interesting insight is that the Blazers' Big Man (Scoring/Defensive) have been less efficient in the paint compared to other playoff teams. 
+
+```{r a14,echo=FALSE,message=FALSE,warning=FALSE}
+
+
+
+
+all_cluster_zone<-pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         complete.cases(Result),
+         team_abbreviation != "POR") %>%
+  mutate(V1 = case_when(
+    V1 == "Driving Scorer" ~ "Perimeter Shooter",
+    TRUE ~ V1
+  )) %>%
+  group_by(V1,Zone) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0)) %>%
+  summarize(Shots = n(),
+            MadePct = round(sum(MadeBasket) / n(),2)) %>%
+  arrange(desc(MadePct)) %>%
+  pivot_wider(id_cols = c(V1),
+              names_from = Zone,
+              values_from = c("MadePct")) %>%
+  rename(Cluster = V1) 
+
+por_cluster_zone<-pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         complete.cases(Result),
+         team_abbreviation == "POR") %>%
+    mutate(V1 = case_when(
+    V1 == "Driving Scorer" ~ "Perimeter Shooter",
+    TRUE ~ V1
+  )) %>%
+  group_by(V1,Zone) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0)) %>%
+  summarize(Shots = n(),
+            MadePct = round(sum(MadeBasket) / n(),2)) %>%
+  arrange(desc(MadePct)) %>%
+  pivot_wider(id_cols = c(V1),
+              names_from = Zone,
+              values_from = c("MadePct")) %>%
+  rename(Cluster = V1) 
+
+all_cluster_zone$tm<-"Playoffs"
+por_cluster_zone$tm<-"POR"
+cluster_zone<-rbind(all_cluster_zone,por_cluster_zone)
+cluster_zone<-cluster_zone %>% arrange(desc(tm),Cluster)
+
+
+cluster_zone %>%
+  dplyr::select(-tm) %>%
+  dplyr::select(Cluster,Paint,`Left Corner`,`Right Corner`,`Left Wing`,`Right Wing`,`Left Baseline`,`Right Baseline`,`Left Elbow`,`Right Elbow`) %>%
+  kable(caption = "Cluster FG Pct by Shooting Zone") %>%
+  group_rows("Portland",1,7) %>%
+  group_rows("Playoff Teams",8,14) %>%
+  kable_styling(font_size = 10)
+
+
+```
+
+In comparing the Perimeter Shooters to Wing/Defenders over time, we can generally see that Perimeter Shooters have been higher performing across each zone compared to Wing/Defenders. The exception mainly being the 2020 season where the Blazers were a better shooting team overall (shortened season could be a reason why). 
+
+```{r a15,echo=FALSE,message=FALSE,warning=FALSE}
+
+pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         complete.cases(Result),
+         team_abbreviation == "POR") %>%
+  group_by(V1,season, Zone) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0)) %>%
+  summarize(Shots = n(),
+            MadePct = round(sum(MadeBasket) / n(),2)) %>%
+  arrange(desc(MadePct)) %>%
+  pivot_wider(id_cols = c(V1,season),
+              names_from = Zone,
+              values_from = c("MadePct")) %>%
+  rename(Cluster = V1) %>%
+  arrange(desc(Cluster),season) %>%
+  dplyr::select(-Cluster) %>%
+  dplyr::select(Cluster,season,Paint,`Left Corner`,`Right Corner`,`Left Wing`,`Right Wing`,`Left Baseline`,`Right Baseline`,`Left Elbow`,`Right Elbow`) %>%
+  mutate(Cluster = case_when(
+    Cluster == "Driving Scorer" ~ "Perimeter Shooter",
+    TRUE ~ Cluster
+  )) %>%
+  filter(Cluster %in% c("Perimeter Wings/Defenders","Perimeter Shooter")) %>%
+  kable(caption = "Portland Perimeter Clusters FG Pct by Shooting Zone by Year") %>%
+  group_rows("Perimeter Wings/Defenders",1,6) %>%
+  group_rows("Perimeter Shooter",7,12) %>%
+  kable_styling(font_size = 9)
+
+
+  #group_rows("Superstar",1,6) %>%
+  #group_rows("Scoring Big Man",7,12) %>%
+  #group_rows("Role Player",13,17) %>%
+  #group_rows("Perimeter Wings/Defenders",18,23) %>%
+  #group_rows("Floor Generals",24,26) %>%
+  #group_rows("Perimeter Shooter",27,32) %>%
+  #group_rows("Defensive Big Man",33,37) %>%
+  #kable_styling(font_size = 10)
+  
+
+
+```
+
+One interesting observation when comparing Dame/CJ is that CJ is better in Dame is shooting from any spot on the floor whereas Dame tend to be pretty spotty. It could be that CJ's had to transform his game to complement Dame, which is why he's more versatile shooting on any part of the floor. What's also interesting that although CJ is no longer categorized as a Superstar, it may be due to the fact that his offensive game and shooting efficiency has taken off rather than other parts of his game have suffered as a result. 
+
+```{r a16,echo=FALSE,warning=FALSE,message=FALSE}
+
+por_total_shots<-pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         complete.cases(Result),
+         team_abbreviation == "POR") %>%
+  group_by(season,athlete_display_name) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0)) %>%
+  summarize(Shots = n())
+
+por_shot_players<-pbp %>%
+  filter(complete.cases(coordinate_x),
+           coordinate_y > 0,
+         complete.cases(Zone),
+         complete.cases(V1),
+         event == "Shot",
+         complete.cases(Result),
+         team_abbreviation == "POR") %>%
+  group_by(season,athlete_display_name,V1,Zone) %>%
+  mutate(MadeBasket = ifelse(score_value > 0,1,0)) %>%
+  summarize(Shots = n(),
+            MadePct = round(sum(MadeBasket) / n(),2)) %>%
+  arrange(desc(Shots)) %>%
+  #filter(Shots > 50) %>%
+  pivot_wider(id_cols = c(season,athlete_display_name,V1),
+              names_from = Zone,
+              values_from = c("MadePct")) %>%
+  rename(Cluster = V1,
+         Player = athlete_display_name) %>%
+  left_join(por_total_shots,by=c("season"="season","Player"="athlete_display_name")) %>%
+  mutate(Cluster = case_when(
+    Cluster == "Driving Scorer" ~ "Perimeter Shooter",
+    TRUE ~ Cluster
+  )) 
+  #filter(Shots > 300)
+
+
+por_shot_players %>%
+  dplyr::select(Player,season,Cluster,Shots,Paint,`Left Corner`,`Right Corner`,`Left Wing`,`Right Wing`,`Left Baseline`,`Right Baseline`,`Left Elbow`,`Right Elbow`) %>%
+  filter(Player %in% c('CJ McCollum','Damian Lillard')) %>%
+  arrange(season,Player)  %>%
+  kable(caption = "Dame/CJ FG Pct by Shooting Zone by Year") %>%
+  kable_styling(font_size = 9) %>%
+  group_rows("2016",1,2) %>%
+  group_rows("2017",3,4) %>%
+  group_rows("2018",5,6) %>%
+  group_rows("2019",7,8) %>%
+  group_rows("2020",9,10) %>%
+  group_rows("2021",11,12) %>%
+  add_footnote(label = "Filtered for Dame/CJ")
+
+
+
+
+```
+
+One area of development for Anfernee Simons is hit shooting efficiency in the paint. Other Perimeter Shooters such as Jake Layman, Pat Connaughton, Seth Curry were good spot up shooters like Anfernee but way more efficient in the paint. It could be good to develop Anfernee's pump fake drive to the hoop game that we've come to see with CJ McCollum's game. Another interesting trend here is around Portland's decision to trade away Gary Trent Jr, he somewhat regressed in terms of FG % in his 2nd year. Although he had success with the Raptors, he was not positioned well in the Blazers offense. One concern is Nassir Little, who we'd expect to regress to a Role Player if his offensive game doesn't expand. 
+
+```{r a17,echo=FALSE,message=FALSE,warning=FALSE}
+
+por_shot_players %>%
+  dplyr::select(Player,season,Cluster,Shots,Paint,`Left Corner`,`Right Corner`,`Left Wing`,`Right Wing`,`Left Baseline`,`Right Baseline`,`Left Elbow`,`Right Elbow`) %>%
+  filter(Cluster %in% c('Perimeter Shooter','Perimeter Wings/Defenders')) %>%
+  arrange(season,desc(Shots))  %>%
+  kable(caption = "Perimeter FG Pct by Shooting Zone by Year") %>%
+  kable_styling(font_size = 9) %>%
+  group_rows("2016",1,4) %>%
+  group_rows("2017",5,9) %>%
+  group_rows("2018",10,15) %>%
+  group_rows("2019",16,21) %>%
+  group_rows("2020",22,25) %>%
+  group_rows("2021",26,31) %>%
+  add_footnote(label = "Filtered for Perimeter Players") 
+
+
+
+```
+
+
+### Win Probability Added by Cluster (WPA)
+
+
+
+```{r a18,include=FALSE}
+
+game_result<- pbp %>%
+  group_by(game_id,team_id) %>%
+  filter(complete.cases(team_id)) %>%
+  summarize(score = sum(score_value)) %>%
+  arrange(game_id,desc(score)) %>%
+  mutate(Result = ifelse(game_id == lead(game_id),
+             "W","L"))
+
+game_result$Result[is.na(game_result$Result)]<-"L"
+
+game_result<-subset(game_result,game_result$Result == "W")
+
+pbp<-pbp %>%
+  left_join(game_result,pbp,by=c("game_id","team_id"))
+  
+
+pbp<-pbp %>%
+  mutate(possessionwin = ifelse(Result.y == "W",1,0))
+  
+pbp$possessionwin[is.na(pbp$possessionwin)]<-0
+
+# sequence number, 
+# cumulative shooting_play
+# period number,
+# score differential
+#start game seconds remaining
+#game play number 
+
+pbp$team_score<-ifelse(pbp$home_team_id == pbp$team_id,pbp$home_score,pbp$away_score)
+pbp$opp_score<-ifelse(pbp$home_team_id == pbp$team_id,pbp$away_score,pbp$home_score)
+pbp$ScoreDiff<-(pbp$team_score - pbp$opp_score)
+pbp$win<-ifelse(pbp$possessionwin == 1,"W","L")
+pbp$PlayTimeSecs<-(pbp$end_game_seconds_remaining - pbp$start_game_seconds_remaining)
+
+pbp<-pbp %>%
+  group_by(game_id,shooting_play) %>%
+  mutate(ShotCount = row_number())
+
+pbp$sequence_number<-as.numeric(pbp$sequence_number)
+
+pbp<-pbp %>%
+  filter(PlayTimeSecs >= 0)
+
+pbp<-pbp %>%
+  filter(PlayTimeSecs <= 24)
+
+pbp<-pbp %>%
+  filter(!type_text %in% c('End Period','End Game'))
+
+
+pbp$period_number<-as.factor(pbp$period_number)
+
+pbp$possessionwin<-as.factor(pbp$possessionwin)
+
+# filter out OT games
+play_final<-pbp %>% filter(period_number %in% c(1,2,3,4))
+
+play_total<-nrow(play_final)
+
+play_final$u<-runif(n=play_total,min=0,max=1)
+
+#create train/test split;
+play.train<-subset(play_final,u < 0.70)
+play.test<-subset(play_final,u >= 0.70)
+
+train.poss<-play.train$possessionwin
+
+train.play.vars<-subset(play.train,
+  select=c("end_game_seconds_remaining","ScoreDiff","score_value","PlayTimeSecs"))
+
+#summary(play.null<-glm(possessionwin ~ 1,family = binomial,data = play.train))
+
+play.train.cols <- paste(paste(colnames(train.play.vars), collapse = " + "))
+
+
+#Define the upper model as the full model
+upper.lm<-glm(paste("possessionwin ~ ",play.train.cols),data=play.train,family = binomial)
+#summary(upper.lm)
+
+mod2<-glm(possessionwin ~ ScoreDiff + score_value + PlayTimeSecs,data=play.train,family=binomial)
+
+#summary(mod2)
+
+##### fit w/ caret for visualizations
+fitControl <- trainControl(## 5-fold CV
+  method = "cv",
+  number = 5,
+  verboseIter = TRUE)
+
+
+frm<-formula(possessionwin ~ ScoreDiff + score_value + PlayTimeSecs)
+
+
+
+finalfrm_glm<- train(
+  form = frm,
+  data = play.train,
+  method = "glm",
+  trControl = fitControl,
+  na.action = na.pass
+)
+
+play_final$pred<-predict(mod2,newdata = play_final,type="response")
+
+play_final<-play_final %>% 
+  mutate(lag_pred = lag(pred))
+
+play_final<-play_final %>%
+  mutate(WPA = pred - lag_pred)
+
+```
+
+WPA or Win Probability Added looks at big time or clutch plays that shift the tide of a specific game. It looks at the win probility delta of previous play to current play for a specified team. WPA is only given to the primary player on a given play. Our WPA model is calculated using the following formula: \
+
+possession_win ~ Score Differential + score value of play + Seconds Left in Game
+
+As we can see, Superstars add a mean of 2.95% Win probability per play. What's interesting is that Perimeter Shooters, your offensive spark off the bench, do just that and can add nearly 2% in WPA on avg. We suspect a lot of their WPA comes from clutch 3 point shots in adding to score differential. Perimeter Shooters also are likely to log a lot WPA during garbage time where they get a lot more minutes as seem their 4% WPA in the 4th quarter. Filtering this data for 750 plays helps to reduce some of the garbage time plays in a given season. Another interesting observation is the nearly 5% WPA added by Superstars in the 3rd quarter. That's where they start to close out games and add to their stats. 
+
+Suprisingly Floor Generals can lose WPA but that may be due to their inability to provide sufficient amount of scoring. 
+
+
+```{r a19,echo=FALSE,warning=FALSE,message=FALSE}
+
+play_final %>%
+  filter(complete.cases(V1)) %>%
+  mutate(V1 = case_when(
+    V1 == "Driving Scorer" ~ "Perimeter Shooter",
+    TRUE ~ as.character(V1)
+  ),
+  WPA_q1 = ifelse(qtr == 1,WPA,NA),
+         WPA_q2 = ifelse(qtr == 2,WPA,NA),
+         WPA_q3 = ifelse(qtr == 3,WPA,NA),
+         WPA_q4 = ifelse(qtr == 4,WPA,NA)) %>%
+  rename(Cluster = V1) %>%
+  group_by(Cluster) %>%
+  summarize(Plays = n(),
+            WPA = round(mean(WPA,na.rm=TRUE),3),
+            WPA_q1 = round(mean(WPA_q1,na.rm=TRUE),3),
+            WPA_q2 = round(mean(WPA_q2,na.rm=TRUE),3),
+            WPA_q3 = round(mean(WPA_q3,na.rm=TRUE),3),
+            WPA_q4 = round(mean(WPA_q4,na.rm=TRUE),3)) %>%
+  filter(Plays >= 750) %>%
+  arrange(desc(WPA)) %>%
+  kable(caption = "Avg Win Probability Added by Cluster") %>%
+  kable_styling(font_size = 9) %>%
+  add_footnote("Filtered for plays during first 4 quarters from 2016-2021; Only looking for those w/ at least 750 plays in a season")
+  
+
+
+
+```
+
+
+CJ McCollum's WPA in 2019 was the best of his career adding nearly 4.6% in Win probability per play he was primarily apart of. That provide a huge boost to the team. Since then, he's been a detriment to Win percentage for the Blazers. We can see the argument of earlier how Championship teams have more Perimeter Shooters on the roster as they provide the necessary spark to the offense off the bench. Aminu/Crabbe in 2017, Connaughton in 2018, Curry in 2019. Regardless of the WPA in 4th quarter (likely garbage time) a lot of these players were an even spark throughout the game and provided a much needed jolt to the offense for when Dame/CJ were having an off shooting night. Such was the case for Seth Curry whose 14.3% WPA avg in 2019 was critical for the teams run to Western Conference Finals. We can see Simons is the only person currently on the roster, which makes sense for his career development. We would suggest the Blazers to target a Perimeter Shooter to provide a jolt to the secondary units. 
+
+```{r a20,echo=FALSE,warning=FALSE,message=FALSE}
+
+play_final %>%
+  filter(complete.cases(V1),
+         team_abbreviation == "POR") %>%
+  mutate(V1 = case_when(
+    V1 == "Driving Scorer" ~ "Perimeter Shooter",
+    TRUE ~ as.character(V1)
+  ),
+  WPA_q1 = ifelse(qtr == 1,WPA,NA),
+         WPA_q2 = ifelse(qtr == 2,WPA,NA),
+         WPA_q3 = ifelse(qtr == 3,WPA,NA),
+         WPA_q4 = ifelse(qtr == 4,WPA,NA)) %>%
+  rename(Cluster = V1) %>%
+  group_by(season,athlete_display_name,Cluster) %>%
+  summarize(Plays = n(),
+            WPA = round(mean(WPA,na.rm=TRUE),3),
+            WPA_q1 = round(mean(WPA_q1,na.rm=TRUE),3),
+            WPA_q2 = round(mean(WPA_q2,na.rm=TRUE),3),
+            WPA_q3 = round(mean(WPA_q3,na.rm=TRUE),3),
+            WPA_q4 = round(mean(WPA_q4,na.rm=TRUE),3)) %>%
+  filter(Plays >= 750) %>%
+  arrange(season,desc(WPA),desc(Plays)) %>%
+  rename(Player = athlete_display_name,
+         Season = season) %>%
+  kable(caption = "Avg Win Probability Added by Cluster") %>%
+  kable_styling(font_size = 9) %>%
+  group_rows("2016",1,9) %>%
+  group_rows("2017",10,18) %>%
+  group_rows("2018",19,28) %>%
+  group_rows("2019",29,38) %>%
+  group_rows("2020",39,46) %>%
+  group_rows("2021",47,55) %>%
+  add_footnote("Filtered for plays during first 4 quarters; Only showing players w/ >750 plays for a given sesason") %>%
+  row_spec(54,bold=T,color="white",background="grey") %>%
+  row_spec(43,bold=T,color="white",background="grey") %>%
+  row_spec(36,bold=T,color="white",background="green")
+
+
+```
+
+In looking at the top Perimeter Shooters, we can see that Anfernee Simon is the 7th highest in terms of WPA added for those with at least 750 plays in the 2020-21 season. Highlighted in grey are those with positive WPA and are available free agents. Bryn Forbes would be a cheap FA option (2020-21 salary of $2.3MM). He will likely go more than $2.3MM given he was on the Bucks but still a good spark off the bench. JaMychal Green could be another option if Forbes is taken. 
+
+```{r a21,echo=FALSE,message=FALSE,warning=FALSE}
+
+play_final %>%
+  filter(complete.cases(V1),
+         season == 2021) %>%
+  mutate(V1 = case_when(
+    V1 == "Driving Scorer" ~ "Perimeter Shooter",
+    TRUE ~ as.character(V1)
+  ),
+  WPA_q1 = ifelse(qtr == 1,WPA,NA),
+         WPA_q2 = ifelse(qtr == 2,WPA,NA),
+         WPA_q3 = ifelse(qtr == 3,WPA,NA),
+         WPA_q4 = ifelse(qtr == 4,WPA,NA)) %>%
+  rename(Cluster = V1) %>%
+  filter(Cluster == "Perimeter Shooter") %>%
+  group_by(athlete_display_name,Cluster) %>%
+  summarize(Plays = n(),
+            WPA = round(mean(WPA,na.rm=TRUE),3),
+            WPA_q1 = round(mean(WPA_q1,na.rm=TRUE),3),
+            WPA_q2 = round(mean(WPA_q2,na.rm=TRUE),3),
+            WPA_q3 = round(mean(WPA_q3,na.rm=TRUE),3),
+            WPA_q4 = round(mean(WPA_q4,na.rm=TRUE),3)) %>%
+  filter(Plays >= 750) %>%
+  arrange(desc(WPA),desc(Plays)) %>%
+  rename(Player = athlete_display_name) %>%
+  kable(caption = "Avg Win Probability Added by Perimeter Shooters") %>%
+  kable_styling(font_size = 9) %>%
+  add_footnote("Filtered for plays during first 4 quarters; Only showing players w/ >750 plays for a given sesason") %>%
+  row_spec(5,bold=T,color="white",background="grey") %>%
+  row_spec(7,bold=T,color="white",background="green") %>%
+  row_spec(10,bold=T,color="white",background="grey") %>%
+  row_spec(11,bold=T,color="white",background="grey") %>%
+  row_spec(13,bold=T,color="white",background="grey")
+
+
+```
+
+
+### Value of Clusters
+Not surprisingly, Superstars are valued the highest but have the highest market inefficients in terms of salary (given high standard deviation). This could be due to not all players being paid out yet for their superstar performance. What's interesting is the average values of a Scoring Big Man is $10MM less per year. Another interesting trend is how over values "Floor Generals" are in the NBA given their low VORP avg. in 2020/21 season. This could be due to their ability to orchestrate the offense but still maybe not worth the cost. 
+
+```{r a22,echo=FALSE,warning=FALSE,message=FALSE}
+
+LastSeason<-newdf2 %>% filter(yr == "2021") 
+
+LastSeason<-LastSeason %>% dplyr::select(-Comp.1,-Comp.2,-Comp.3,-Comp.4,-Comp.5,-Comp.6,)
+
+LastSeason<-LastSeason %>% distinct()
+
+LastSeason<-LastSeason %>%
+  left_join(salaries,LastSeason,by=c("tm"="Tm","player"="Player"))
+
+
+
+LastSeason$`2020-21`<-as.numeric(gsub('[$,]', '', LastSeason$X2020.21))
+
+
+LastSeason %>%
+  group_by(V1) %>%
+  summarize(`VORP AVG` = round(mean(vorp),2),
+            `VORP STDV` = round(sd(vorp),2),
+            `2020-21 AVG` = mean(`2020-21`,na.rm = TRUE),
+            `2020-21 STDV` = sd(`2020-21`,na.rm= TRUE)) %>%
+  rename(Cluster = V1) %>%
+  arrange(desc(`VORP AVG`)) %>%
+  kable(caption = "Value of Player Cluster") %>%
+  kable_styling(font_size = 10) 
+
+
+
+
+```
+
+
+
+
+CJ McCollum & Derek Jones Jr contract hurt for the Blazers. CJ McCollum is about 3x the value of Perimeter Wing/Defender contract and Derrick Jones is nearly 2x that of a normal defensive big. Norman Powell (not listed because he only played 27 games with the Blazers and threshold below for 30 games) had a VORP of 0.1, which isn't an ideal FA target. Norman Powell's 2020-21 salary was ~$10.5M. Enes Kanter's value is 2x cheaper than a Scoring Big Man. 
+```{r a23,echo=FALSE,warning=FALSE}
+
+por_salaries<-salaries %>% filter(Tm == "POR")
+
+por_salaries<-por_salaries %>%
+  mutate(Player = case_when(
+    Player == "Jusuf Nurkić" ~ "Jusuf Nurkic",
+    TRUE ~ as.character(Player)
+  ))
+#FA<-current_salaries %>% filter(isFinalSeason == "TRUE")
+
+pdx<-pdx %>%
+  left_join(por_salaries,pdx,by=c("tm"="Tm","player"="Player"))
+
+#LastSeason<-newdf2 %>% filter(yr == "2021") 
+#FA_data<-LastSeason %>% 
+#  left_join(fa_salaries,LastSeason,by=c("player" = "player","tm" = "tm"))
+
+
+
+
+pdx %>%
+  filter(yr %in% c(2021)) %>%
+  dplyr::select(player,pos,age,yr,tm,mp,pts,vorp,V1,X2020.21,X2021.22,Guaranteed) %>%
+  distinct(player,pos,age,yr,tm,mp,pts,vorp,V1,X2020.21,X2021.22,Guaranteed) %>%
+  filter(complete.cases(X2020.21)) %>%
+  rename(cluster = V1,
+         `2020-21` = X2020.21,
+         `2021-22` = X2021.22) %>%
+  arrange(desc(vorp)) %>%
+  kable(caption = "2021 Clusters & Values of Portland") %>%
+  kable_styling(font_size = 10) %>%
+  row_spec(2,bold=T,color="white",background="red") %>%
+  row_spec(8,bold=T,color="white",background="red") %>%
+  row_spec(4,bold=T,color="white",background="green")
+
+#a<-subset(pergame,pergame$player == "Norman Powell")
+
+
+
+
+
+```
+
+
+### 2020-21 Free Agent Targets
+
+In terms of possible FA targets, the Blazers need a likely Scoring Big Man (if they can't resign Kanter), a Perimeter Wing/Defender and/or Shooter. We'd opt for a Shooter to add some depth to the roster but getting a younger Perimeter Wing/Defender may be best to backup Carmelo Anthony and Robert Covington who are both 30+. In looking at the available FA list, we've identified a few targets for the Blazers. The options are the following: 
+
+1. If the Blazers, can't resign Enes Kanter, The Blazers should sign Richaun Holmes. He's the same price as Kanter, a bit more durable in terms of MP/G and a year younger. 
+
+2. Sign and Trade for Lauri Markkanen. Might be worth to move Derrick Jones Jr. for Lauri Markkanen who is young and could be the future wing for the roster. Lauri is similar price to Derrick Jones and likely an odd man out in Chicago. Derrick Jones is a better fit to move into the Chicago rotation. 
+
+3. Duncan Robinson could be a good off the bench for the Blazers if the Heat don't put out a viable offer.
+
+4. Cheap bench signings would Bryn Forbes that could be good offensive shooters off the bench. 
+
+```{r a24,echo=FALSE,message=FALSE}
+
+
+
+FA_data<-LastSeason %>% 
+  left_join(fa_salaries,LastSeason,by=c("player" = "player","tm" = "tm"))
+
+
+FA_data %>%
+  filter(complete.cases(POS.)) %>%
+  dplyr::select(player,pos,age,yr,tm,mp,pts,vorp,V1,X2020.21,TYPE,RIGHTS) %>%
+  distinct(player,pos,age,yr,tm,mp,pts,vorp,V1,X2020.21,TYPE,RIGHTS) %>%
+  rename(cluster = V1,
+         `2020-21` = X2020.21,
+         type = TYPE,
+         rights = RIGHTS) %>%
+  arrange(desc(vorp)) %>%
+  kable(caption = "2021/22 NBA Free Agents") %>%
+  kable_styling(font_size = 10) %>%
+  row_spec(14,bold=T,color="white",background="grey") %>%
+  row_spec(15,bold=T,color="white",background="grey") %>%
+  row_spec(22,bold=T,color="white",background="grey") %>%
+  row_spec(27,bold=T,color="white",background="grey") %>%
+  row_spec(40,bold=T,color="white",background="grey") %>%
+  row_spec(42,bold=T,color="white",background="grey") %>%
+  row_spec(48,bold=T,color="white",background="grey") %>%
+  add_footnote("NA for salary likely means data couldn't be found")
+
+
+
+```
+
+
+This would be hypothetical what the Blazers look like with their FA signings. 
+```{r a25,echo=FALSE,message=FALSE,warning=FALSE}
+
+team1<-LastSeason %>%
+  filter(player %in% c('Damian Lillard','CJ McCollum','Robert Covington','Jusuf Nurkic','Anfernee Simons','Derrick Jones Jr.','CJ Elleby','Enes Kanter','Lauri Markkanen','Duncan Robinson','Richaun Holmes','Bryn Forbes'))
+
+
+
+team1<-team1 %>%
+  dplyr::select(player,pos,age,yr,tm,mp,pts,vorp,V1,X2020.21) %>%
+  distinct(player,pos,age,yr,tm,mp,pts,vorp,V1,X2020.21) %>%
+  arrange(desc(vorp))  %>%
+  rename(cluster = V1,
+         `2020-21` = X2020.21)
+
+#team1$X2020.21<-ifelse(complete.cases(team1$X2020.21),team1$X2020.21,
+
+#team1$`2020-21`[is.na(team1$`2020-21`)]<-"10491264"
+
+team1 %>%
+  kable(caption = "2021/22 Portland Trail Blazers") %>%
+  kable_styling(font_size = 10)
+
+#### find JUSUF salary
+
+
+
+```
+
+
+### Superstar Trade Targets
+Below are the the players who played in the Superstar range for the 2020-21 season. We can see it is an elite 42 players in the league. In terms of trade targets for the Blazers, the Pascal Siakam makes the most sense to pair Dame with a "true" superstar and have someone with a comparable salary to CJ McCollum at $30MM. A Jaylen Brown could be another nice addition and be a $7MM saving for Boston if swapped with CJ. These two targets are younger than CJ still playing at elite levels. 
+
+```{r a26,echo=FALSE,message=FALSE,warning=FALSE}
+
+
+
+
+LastSeason %>%
+  filter(V1 == "Superstar") %>%
+  dplyr::select(player,pos,age,yr,tm,mp,pts,vorp,V1,X2020.21) %>%
+    arrange(desc(vorp))  %>%
+  rename(cluster = V1,
+         `2020-21` = X2020.21) %>%
+  kable(caption = "2021 NBA Superstar Cluster") %>%
+  kable_styling(font_size = 10) %>%
+  row_spec(36,bold=T,color="white",background="grey") %>%
+  row_spec(4,bold=T,color="white",background="grey") %>%
+row_spec(24,bold=T,color="white",background="grey")
+
+
+```
+
+
+```
