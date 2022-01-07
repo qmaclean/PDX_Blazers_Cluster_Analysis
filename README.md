@@ -1,3 +1,7 @@
+Full Analysis output: https://htmlpreview.github.io/?https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/blob/main/NBA_Cluster_Model.html
+
+
+
 Portland Trail Blazers Roster Construction Cluster Analysis
 ================
 
