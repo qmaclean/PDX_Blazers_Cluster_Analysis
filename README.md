@@ -18,6 +18,10 @@ To identify “true positions”, we will first do a Principle Components Analys
 
 <img src="https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/blob/main/viz_images/nba_pca.png" width="50%" />
 
+The “Scree Plot” is a useful visualization to show how much variance is explained in each newly constructed “PCA” variables. We can see the 1st dimension combined 37% of the variables into 1 dimension, the 2nd dimension is comprised of the 21.8% of the variables and so on. For our analysis, we will be using the first 6 dimensions as that encompasses 83.1% of the original variables. This is a sufficiently high percentage for us.
+
+
+
 
 View of Blazer's Roster Construction over time
 
