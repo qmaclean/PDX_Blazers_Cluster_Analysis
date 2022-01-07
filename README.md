@@ -32,14 +32,34 @@ The table below shows that at 7 clusters, we can account for a majority of the v
 
 <img src="https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/blob/main/viz_images/k_means_in_between_ss.png" width="50%" />
 
-View of Blazer's Roster Construction over time
+This chart below shows the overlapping of some of the 7 clusters in overall similarity. If we had a higher “K” cluster, we would have more overlap.
 
-Playoffs & Salary data exported from Basketball Reference
+<img src="https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/blob/main/viz_images/cluster_plot.png" width="50%" />
 
-Play-by-play data & Per Game data from HoopR and NBAStatR
+Next, we input our K-means with our newly constructed PCA variables. As we can see, we get a 61% Sum of Square Percentage at 7 clusters, which tells us that the indiviudal statistics were causing too much variation. By combining some highly correlated statitics, we were able to reduce overall variance.
 
-Free Agency Salary data from Spotrac.com
+GRAPH
 
-Clusters were built using a PCA of 36 per game variables and those PCAs were inputted into a K-means model where 7 clusters were identified. 
+We still have some overall overlap with the PCA variables inputted but that may be expected.
 
-Once the clusters were identified the remaining analysis was to look at Portland Trail Blazer performance. 
+GRAPH
+
+With 7 clusters determined from our dataset, we’ve renamed the clusters with more common names that we can interpret from. The following table shows how the PCA variables align in terms cluster fits. More simply put, what skillsets each “true positions” are made up off. In terms of the 7 clusters, we have identified the following names from the clusters: “Superstars”, “Scoring Big Men”, “Perimeter Wing/Defenders”, “Floor Generals”, “Defensive Big Men”, “Perimeter Shooter” and “Role Players”. “Superstars” are your all-around players and have the highest value on the team in terms of scoring, some defense, and shooting efficiency. They lack in terms of rebounding and defense, which the Scoring Big Men are better at. These are the primary “All-stars” on the roster. Perimeter Wings/Defenders are your secondary superstar scorers and have an all-around game. Defense Big Men are secondary Scoring Big Man with more of a focus on defense and rebounding. Floor Generals are efficient scorers, passers and ball handling. They likely don’t show up too much in the box score. Perimeter Shooters are your sparks off the bench but are one-way offense backups and don’t really provide much value in terms of defense. Lastly, Role Players are your scrubs and rotation players that don’t have much value all around in terms of game statistics. The PCA averages can be a bit difficult to interpret but for “Rebounding” and “Shooting Efficiency”, the highest value is negative. For the other variables, the higher the positive value the more that player in the cluster is better at that specific variable.
+
+VORP = Value over replacement player (Box score estimate of estimate points per 100 team possessions that a player contributes over a replacement or average player during that time frame); Kobe Bryant averaged around a 8 in VORP, Lebron James averages a 9 VORP, Michael Jordan averaged a 10 in VORP. Those are top-end numbers.
+
+TABLE
+
+# Trail Blazers Analysis
+
+Now that we have our clusters built and assigned it’s now time to look at how the Trail Blazers roster has been constructed.
+
+In order to do so, we need to establish some context in terms of team’s performance. 2018 was likely the biggest underachieving year given they were a 3rd seed and had a first round exit. 2019 was the best final result in a Western Conference Final appearance (CF stands out Conference Final exit). 2020 & 2021 featured two first round exits for the Blazers. The 2019 is likely considered the best team constructed for the Blazers. We will dive into why the team fell so much in terms of performance after the 2019 season.
+
+
+Data:
++ Playoffs & Salary data exported from Basketball Reference
++ Play-by-play data & Per Game data from HoopR and NBAStatR
++ Free Agency Salary data from Spotrac.com
+
+
