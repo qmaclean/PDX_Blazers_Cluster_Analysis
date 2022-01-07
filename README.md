@@ -16,7 +16,7 @@ All of these questions, we will be comparing the Portland Trail Blazers to other
 To identify “true positions”, we will first do a Principle Components Analysis from 36 variables that encompass a lot of common player statistics such as shooting (FG %, 3P %, etc), Assists, Steals, Blocks, Rebounding, and a number of efficiency metrics (VORP, EFG %). All of these stats are per game statistics. In order to prep the statistics, we need to “scale” the variables as to transform the variables to be all on the same scale. This is important so that not one variable is weighted more than the other just given that it would have a higher overall number. A Principle Components Analysis looks for variables that are highly correlated with each other and combines them into a new variable. This analysis will reduce the 36 variables to a few, highly correlated variables. This is helpful to identify clusters of “skillsets”. We can see the PCA Plot below how some of the variables start to cluster together.
 
 
-<img src="https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/main/viz_images/nba_pca.png" width="50%" />
+<img src="https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/viz_images/nba_pca.png" width="50%" />
 
 
 View of Blazer's Roster Construction over time
