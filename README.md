@@ -20,8 +20,17 @@ To identify “true positions”, we will first do a Principle Components Analys
 
 The “Scree Plot” is a useful visualization to show how much variance is explained in each newly constructed “PCA” variables. We can see the 1st dimension combined 37% of the variables into 1 dimension, the 2nd dimension is comprised of the 21.8% of the variables and so on. For our analysis, we will be using the first 6 dimensions as that encompasses 83.1% of the original variables. This is a sufficiently high percentage for us.
 
+<img src="https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/blob/main/viz_images/pca_scree.png" width="50%" />
 
+The following 6 charts help to explain what each of those newly constructed PCA variables are comprised of from the original variables. Our first (37.3% variance explained) is made up of “Scoring” variables. The 2nd (21.8% variance explained) is made up of “Rebounding” variables. As we notice from the “Scree Plot” from here the variables start to drop off in secondary variables and loose formations from the original variables. Our 3rd variable is comprised of Effective Field Goal Percentage (EFG %) and True Shooting Pct % (TSPercent). Our 4th variable is made up of “Defensive” metrics of Defensive Box Plus/Minus (DBPM) and “Steal Percentage”. The 5th and 6th variables are very specific with the 5th only really accounting for Free Throw Rate and the 6th being just Turnover Over Percent (TOV%) or Ball Handling. The combined variables can be thought of a “skillset” comprised of each true position.
 
+<img src="https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/blob/main/viz_images/pca_contributions.png" width="50%" />
+
+With our variables cleaned up and combined, we will now perform a K-means cluster analysis, a form of Unsupervised Machine Learning to reduce the rows of data into grouped clusters. This will help us identify how many “true positions” exist amongst all the players statistics. Essentially, the K-means iterates through to figure out the average of all PCA variables and helps to assign a cluster variable to players with similar average values across all inputted variables. In order to determine how many clusters exist, we can several different methods. We will be using a Sum of Square method to identify appropriate number of clusters amongst the data points. The goal of this percentage is to to say how much total variance of the data set can be explained by clustering. The overall goal of K-means is to minimize the within group dispersion and maximize the between-group dispersion. More simply put, it’s better to find a few broad clusters that can encompass many players than very specific clusters that would over-generalize their group fit.
+
+The table below shows that at 7 clusters, we can account for a majority of the variance at 52% of the dataset. This figure is without the inputted PCA variables. 52% is a low enough number to account for the generality. These numbers also tell us that there a lot of players with very specific player profiles.
+
+<img src="https://github.com/qmaclean/PDX_Blazers_Cluster_Analysis/blob/main/viz_images/k_means_in_between_ss.png" width="50%" />
 
 View of Blazer's Roster Construction over time
 
